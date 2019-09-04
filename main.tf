@@ -1,0 +1,1 @@
+resource "striketracker_origin" "test-origin" {}
