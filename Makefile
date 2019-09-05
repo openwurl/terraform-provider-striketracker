@@ -11,7 +11,7 @@ SHELL=/bin/bash -e -o pipefail
 ###      TARGETS      ###
 #########################
 
-.PHONY: test cover build
+.PHONY: test cover build init reset
 
 test: ## Runs basic go test
 	go test -v ./... --cover --coverprofile=wurlwind.out
@@ -21,3 +21,8 @@ cover: ## Generate coverage report
 
 build: ## Build plugin binary
 	go build -o terraform-provider-striketracker
+
+init: ## Init terraform to discover built plugin
+	terraform init
+
+reset: build init ## build and init
