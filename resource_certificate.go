@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/striketracker"
@@ -16,6 +17,7 @@ func resourceCertificate() *schema.Resource {
 		Read:   resourceCertificateRead,
 		Update: resourceCertificateUpdate,
 		Delete: resourceCertificateDelete,
+		Exists: resourceCertificateExists,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -68,11 +70,6 @@ func resourceCertificate() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			//			"certificate_id": &schema.Schema{
-			//				Description: "The certificates remote ID",
-			//				Type:        schema.TypeString,
-			//				Computed:    true,
-			//			},
 			"issuer": &schema.Schema{
 				Description: "The organization which issued the certificate",
 				Type:        schema.TypeString,
@@ -166,8 +163,10 @@ func resourceCertificateCreate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	returnedCertificate, err := cs.Upload(ctx, accountHash, certificate)
-	if returnedCertificate.ID != 0 {
-		d.SetId(fmt.Sprintf("%d", returnedCertificate.ID))
+	if returnedCertificate != nil {
+		if returnedCertificate.ID != 0 {
+			d.SetId(fmt.Sprintf("%d", returnedCertificate.ID))
+		}
 	}
 	if err != nil {
 		return err
@@ -192,7 +191,13 @@ func resourceCertificateUpdate(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
+	certificateID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return err
+	}
+
 	certificate := &models.Certificate{
+		ID:          certificateID,
 		CABundle:    d.Get("ca_bundle").(string),
 		Certificate: d.Get("certificate").(string),
 		Ciphers:     d.Get("ciphers").(string),
@@ -202,8 +207,10 @@ func resourceCertificateUpdate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	returnedCertificate, err := cs.Update(ctx, accountHash, certificate)
-	if returnedCertificate.ID != 0 {
-		d.SetId(fmt.Sprintf("%d", returnedCertificate.ID))
+	if returnedCertificate != nil {
+		if returnedCertificate.ID != 0 {
+			d.SetId(fmt.Sprintf("%d", returnedCertificate.ID))
+		}
 	}
 	if err != nil {
 		return err
@@ -246,5 +253,30 @@ func resourceCertificateDelete(d *schema.ResourceData, m interface{}) error {
 	Exists
 */
 func resourceCertificateExists(d *schema.ResourceData, m interface{}) (bool, error) {
+	c := m.(*striketracker.Client)
+	accountHash := d.Get("account_hash").(string)
+
+	cs := certificates.New(c)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	certificateID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return false, err
+	}
+
+	certResource, err := cs.Get(ctx, accountHash, certificateID)
+	if err != nil {
+		return false, err
+	}
+
+	if certResource != nil {
+		if certResource.Code == ErrCodeNotFound && strings.Contains(certResource.Error, ErrNotFound) {
+			err = fmt.Errorf("Resource does not exist")
+			return false, certResource.Err(err)
+		}
+	}
+
 	return true, nil
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/openwurl/wurlwind/striketracker"
 
@@ -11,30 +12,18 @@ import (
 	"github.com/openwurl/wurlwind/striketracker/services/origin"
 )
 
-// TODO
-/*
-	Fix partial states
-	return reads on resource
-
-*/
-
 func resourceOrigin() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceOriginCreate,
 		Read:   resourceOriginRead,
 		Update: resourceOriginUpdate,
 		Delete: resourceOriginDelete,
-		//Exists: resourceOriginExists, Need to implement before adding or it breaks
+		Exists: resourceOriginExists,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
 
 		Schema: map[string]*schema.Schema{
-			"origin_id": &schema.Schema{
-				Description: "The computed ID of the origin",
-				Type:        schema.TypeInt,
-				Computed:    true,
-			},
 			"name": &schema.Schema{
 				Description: "The name of the origin",
 				Type:        schema.TypeString,
@@ -175,11 +164,15 @@ func resourceOriginCreate(d *schema.ResourceData, m interface{}) error {
 	defer cancel()
 
 	returnedModel, err := s.Create(ctx, accountHash, origin)
+	if returnedModel != nil {
+		if returnedModel.ID != 0 {
+			d.SetId(fmt.Sprintf("%d", returnedModel.ID))
+		}
+	}
 	if err != nil {
 		return err
 	}
 
-	d.SetId(fmt.Sprintf("%d", returnedModel.ID))
 	d.Partial(false)
 
 	return resourceOriginRead(d, m)
@@ -266,8 +259,10 @@ func resourceOriginUpdate(d *schema.ResourceData, m interface{}) error {
 	defer cancel()
 
 	returnedModel, err := s.Update(ctx, accountHash, origin)
-	if returnedModel.ID != 0 {
-		d.SetId(fmt.Sprintf("%d", returnedModel.ID))
+	if returnedModel != nil {
+		if returnedModel.ID != 0 {
+			d.SetId(fmt.Sprintf("%d", returnedModel.ID))
+		}
 	}
 	if err != nil {
 		return err
@@ -286,7 +281,6 @@ func resourceOriginDelete(d *schema.ResourceData, m interface{}) error {
 
 	s := origin.New(c)
 	accountHash := d.Get("account_hash").(string)
-	//originID := d.Get("origin_id").(int)
 	originID, err := strconv.Atoi(d.Id())
 	if err != nil {
 		return fmt.Errorf("Origin ID %s is an invalid origin ID: %v", d.Id(), err)
@@ -308,9 +302,29 @@ func resourceOriginDelete(d *schema.ResourceData, m interface{}) error {
 	Exists
 */
 func resourceOriginExists(d *schema.ResourceData, m interface{}) (bool, error) {
-	// TODO
-	/*
-		Fetch resource and determine if specific error is NOT FOUND
-	*/
+	c := m.(*striketracker.Client)
+	accountHash := d.Get("account_hash").(string)
+
+	cs := origin.New(c)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	originID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return false, err
+	}
+
+	originResource, err := cs.Get(ctx, accountHash, originID)
+	if originResource != nil {
+		if originResource.Code == ErrCodeNotFound && strings.Contains(originResource.Error, ErrNotFound) {
+			err = fmt.Errorf("Resource does not exist")
+			return false, originResource.Err(err)
+		}
+	}
+	if err != nil {
+		return false, err
+	}
+
 	return true, nil
 }

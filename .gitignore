@@ -39,3 +39,4 @@ override.tf.json
 
 *terraform-provider-striketracker*
 main.tf
+test-vars.tf
