@@ -24,6 +24,7 @@ func resourceOrigin() *schema.Resource {
 		Read:   resourceOriginRead,
 		Update: resourceOriginUpdate,
 		Delete: resourceOriginDelete,
+		//Exists: resourceOriginExists, Need to implement before adding or it breaks
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
@@ -58,7 +59,7 @@ func resourceOrigin() *schema.Resource {
 				Description: "Authentication type, NONE or BASIC",
 				Type:        schema.TypeString,
 				Optional:    true,
-				//Default:     "NONE",
+				Default:     "NONE",
 			},
 			"certificate_cn": &schema.Schema{
 				Description: "Common name to validate if VerifyCertificate",
@@ -68,6 +69,7 @@ func resourceOrigin() *schema.Resource {
 			"error_cache_ttl_seconds": &schema.Schema{
 				Description: "DNS Timeout for origin request",
 				Type:        schema.TypeInt,
+				Default:     100,
 				Optional:    true,
 			},
 			"max_connections_per_edge": &schema.Schema{
@@ -88,6 +90,7 @@ func resourceOrigin() *schema.Resource {
 			"max_retry_count": &schema.Schema{
 				Description: "",
 				Type:        schema.TypeInt,
+				Default:     1,
 				Optional:    true,
 			},
 			"origin_cache_headers": &schema.Schema{
@@ -118,6 +121,7 @@ func resourceOrigin() *schema.Resource {
 			"request_timeout_seconds": &schema.Schema{
 				Description: "Timeout for request to origin",
 				Type:        schema.TypeInt,
+				Default:     15,
 				Optional:    true,
 			},
 			"secure_port": &schema.Schema{
@@ -135,7 +139,12 @@ func resourceOrigin() *schema.Resource {
 	}
 }
 
+/*
+	Create
+*/
 func resourceOriginCreate(d *schema.ResourceData, m interface{}) error {
+	d.Partial(true)
+
 	c := m.(*striketracker.Client)
 	s := origin.New(c)
 	accountHash := d.Get("account_hash").(string)
@@ -160,22 +169,68 @@ func resourceOriginCreate(d *schema.ResourceData, m interface{}) error {
 		VerifyCertificate:            d.Get("verify_certificate").(bool),
 	}
 
-	returnedModel, err := s.Create(accountHash, origin)
+	ctx, cancel := getContext()
+	defer cancel()
+
+	returnedModel, err := s.Create(ctx, accountHash, origin)
 	if err != nil {
-		d.Partial(true)
 		return err
 	}
 
 	d.SetId(fmt.Sprintf("%d", returnedModel.ID))
+	d.Partial(false)
+
 	//d.Set("origin_id", returnedModel.ID)
 	return resourceOriginRead(d, m)
 }
 
+/*
+	Read
+*/
 func resourceOriginRead(d *schema.ResourceData, m interface{}) error {
+	c := m.(*striketracker.Client)
+	s := origin.New(c)
+	accountHash := d.Get("account_hash").(string)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	originID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return err
+	}
+	originResource, err := s.Get(ctx, accountHash, originID)
+	if err != nil {
+		return err
+	}
+
+	d.Set("name", originResource.Name)
+	d.Set("hostname", originResource.Hostname)
+	d.Set("port", originResource.Port)
+	d.Set("path", originResource.Path)
+	d.Set("authentication_type", originResource.AuthenticationType)
+	d.Set("certificate_cn", originResource.CertificateCN)
+	d.Set("error_cache_ttl_seconds", originResource.ErrorCacheTTLSeconds)
+	d.Set("max_connections_per_edge", originResource.MaxConnectionsPerEdge)
+	d.Set("max_connections_per_edge_enabled", originResource.MaxConnectionsPerEdgeEnabled)
+	d.Set("maximum_origin_pull_seconds", originResource.MaximumOriginPullSeconds)
+	d.Set("max_retry_count", originResource.MaxRetryCount)
+	d.Set("origin_cache_headers", originResource.OriginCacheHeaders)
+	d.Set("origin_default_keep_alive", originResource.OriginDefaultKeepAlive)
+	d.Set("origin_pull_headers", originResource.OriginPullHeaders)
+	d.Set("origin_pull_neg_linger", originResource.OriginPullNegLinger)
+	d.Set("request_timeout_seconds", originResource.RequestTimeoutSeconds)
+	d.Set("secure_port", originResource.SecurePort)
+	d.Set("verify_certificate", originResource.VerifyCertificate)
+
 	return nil
 }
 
+/*
+	Update
+*/
 func resourceOriginUpdate(d *schema.ResourceData, m interface{}) error {
+	d.Partial(true)
 	c := m.(*striketracker.Client)
 	originID, err := strconv.Atoi(d.Id())
 	if err != nil {
@@ -206,18 +261,24 @@ func resourceOriginUpdate(d *schema.ResourceData, m interface{}) error {
 		VerifyCertificate:            d.Get("verify_certificate").(bool),
 	}
 
-	returnedModel, err := s.Update(accountHash, origin)
+	ctx, cancel := getContext()
+	defer cancel()
+
+	returnedModel, err := s.Update(ctx, accountHash, origin)
 	if returnedModel.ID != 0 {
 		d.SetId(fmt.Sprintf("%d", returnedModel.ID))
 	}
 	if err != nil {
-		d.Partial(true)
 		return err
 	}
 
+	d.Partial(false)
 	return resourceOriginRead(d, m)
 }
 
+/*
+	Delete
+*/
 func resourceOriginDelete(d *schema.ResourceData, m interface{}) error {
 	c := m.(*striketracker.Client)
 
@@ -228,11 +289,23 @@ func resourceOriginDelete(d *schema.ResourceData, m interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Origin ID %s is an invalid origin ID: %v", d.Id(), err)
 	}
-	err = s.Delete(accountHash, originID)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	err = s.Delete(ctx, accountHash, originID)
 	if err != nil {
 		d.Partial(true)
 		return err
 	}
 	d.SetId("")
 	return nil
+}
+
+/*
+	Exists
+*/
+func resourceOriginExists(d *schema.ResourceData, m interface{}) (bool, error) {
+	// Get, check that it's not a not-exists error
+	return true, nil
 }
