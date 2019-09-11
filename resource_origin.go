@@ -135,6 +135,8 @@ func resourceOrigin() *schema.Resource {
 				Type:        schema.TypeBool,
 				Optional:    true,
 			},
+			// CreatedDate Computed
+			// UpdatedDate Computed
 		},
 	}
 }
@@ -180,7 +182,6 @@ func resourceOriginCreate(d *schema.ResourceData, m interface{}) error {
 	d.SetId(fmt.Sprintf("%d", returnedModel.ID))
 	d.Partial(false)
 
-	//d.Set("origin_id", returnedModel.ID)
 	return resourceOriginRead(d, m)
 }
 
@@ -280,6 +281,7 @@ func resourceOriginUpdate(d *schema.ResourceData, m interface{}) error {
 	Delete
 */
 func resourceOriginDelete(d *schema.ResourceData, m interface{}) error {
+	d.Partial(true)
 	c := m.(*striketracker.Client)
 
 	s := origin.New(c)
@@ -295,9 +297,9 @@ func resourceOriginDelete(d *schema.ResourceData, m interface{}) error {
 
 	err = s.Delete(ctx, accountHash, originID)
 	if err != nil {
-		d.Partial(true)
 		return err
 	}
+	d.Partial(false)
 	d.SetId("")
 	return nil
 }
@@ -306,6 +308,9 @@ func resourceOriginDelete(d *schema.ResourceData, m interface{}) error {
 	Exists
 */
 func resourceOriginExists(d *schema.ResourceData, m interface{}) (bool, error) {
-	// Get, check that it's not a not-exists error
+	// TODO
+	/*
+		Fetch resource and determine if specific error is NOT FOUND
+	*/
 	return true, nil
 }

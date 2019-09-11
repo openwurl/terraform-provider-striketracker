@@ -21,7 +21,8 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"striketracker_origin": resourceOrigin(),
+			"striketracker_origin":      resourceOrigin(),
+			"striketracker_certificate": resourceCertificate(),
 		},
 		ConfigureFunc: providerConfigure,
 	}

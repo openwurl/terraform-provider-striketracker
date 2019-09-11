@@ -38,3 +38,4 @@ override.tf.json
 # vendor/
 
 *terraform-provider-striketracker*
+main.tf
