@@ -20,7 +20,16 @@ func resourceOrigin() *schema.Resource {
 		Delete: resourceOriginDelete,
 		Exists: resourceOriginExists,
 		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
+			State: func(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+				accountHash, resourceID, err := ResourceImportParseHashID(d.Id())
+				if err != nil {
+					return nil, err
+				}
+				d.Set("account_hash", accountHash)
+				d.SetId(resourceID)
+
+				return []*schema.ResourceData{d}, nil
+			},
 		},
 
 		Schema: map[string]*schema.Schema{
