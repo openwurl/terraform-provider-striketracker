@@ -23,6 +23,7 @@ func getContext() (context.Context, context.CancelFunc) {
 // the resource ID, so on imports we must input account_hash/ID unless
 // someone knows a way to get the Importer func to get it from the resource
 // definition
+// https://www.terraform.io/docs/extend/resources/import.html
 func ResourceImportParseHashID(input string) (string, string, error) {
 	parts := strings.SplitN(input, "/", 2)
 
