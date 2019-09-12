@@ -9,8 +9,6 @@ import (
 
 // Errors and string checks
 const (
-	ErrCodeNotFound   = 404
-	ErrNotFound       = "The requested resource was not found"
 	ErrBadImportParse = "unexpected format of import ID (%s), expected account_hash/ID"
 )
 

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/openwurl/wurlwind/striketracker"
 
@@ -325,14 +324,12 @@ func resourceOriginExists(d *schema.ResourceData, m interface{}) (bool, error) {
 	}
 
 	originResource, err := cs.Get(ctx, accountHash, originID)
-	if originResource != nil {
-		if originResource.Code == ErrCodeNotFound && strings.Contains(originResource.Error, ErrNotFound) {
-			err = fmt.Errorf("Resource does not exist")
-			return false, originResource.Err(err)
-		}
-	}
 	if err != nil {
 		return false, err
+	}
+
+	if originResource == nil {
+		return false, fmt.Errorf(striketracker.ErrNotFound)
 	}
 
 	return true, nil

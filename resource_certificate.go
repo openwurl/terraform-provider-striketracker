@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/striketracker"
@@ -280,11 +279,8 @@ func resourceCertificateExists(d *schema.ResourceData, m interface{}) (bool, err
 		return false, err
 	}
 
-	if certResource != nil {
-		if certResource.Code == ErrCodeNotFound && strings.Contains(certResource.Error, ErrNotFound) {
-			err = fmt.Errorf("Resource does not exist")
-			return false, certResource.Err(err)
-		}
+	if certResource == nil {
+		return false, fmt.Errorf(striketracker.ErrNotFound)
 	}
 
 	return true, nil
