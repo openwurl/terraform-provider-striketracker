@@ -4,6 +4,13 @@
 
 Bootstrap in progress, nothing to say yet
 
+Backed by the [WurlWind](https://github.com/openwurl/wurlwind) library
+
+
+# Getting Started
+
+`go get https://github.com/openwurl/terraform-provider-striketracker`
+
 # Resources
 Resources define infrastructure at the Striketracker/Highwinds CDN.
 
