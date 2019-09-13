@@ -1,15 +1,59 @@
-# terraform-provider-striketracker
+Terraform Provider For Striketracker
+==================
 
-![wurlwind](static/wurlwind.png)
+- Website: https://www.terraform.io
+- [![Gitter chat](https://badges.gitter.im/hashicorp-terraform/Lobby.png)](https://gitter.im/hashicorp-terraform/Lobby)
+- Mailing list: [Google Groups](http://groups.google.com/group/terraform-tool)
+
+<img src="https://cdn.rawgit.com/hashicorp/terraform-website/master/content/source/assets/images/logo-hashicorp.svg" width="600px">
+
 
 Bootstrap in progress, nothing to say yet
 
 Backed by the [WurlWind](https://github.com/openwurl/wurlwind) library
 
+# Maintainers
 
-# Getting Started
+This terraform provider plugin is maintained by the Engineering team at [Wurl](https://www.wurl.com/).
 
-`go get https://github.com/openwurl/terraform-provider-striketracker`
+# Requirements
+
+- [Terraform](https://www.terraform.io/downloads.html) 0.10.x+
+- [Go](https://golang.org/doc/install) 1.11+ (to build the provider plugin)
+
+# Getting Started (Plugin)
+
+This is rough and will be updated
+
+```
+mkdir $GOPATH/src/github.com/openwurl; cd $GOPATH/src/github.com/openwurl
+git clone git@github.com:openwurl/terraform-provider-striketracker.git
+```
+
+Enter the directory and build
+
+```
+cd $GOPATH/src/github.com/openwurl/terraform-provider-striketracker.git
+make build
+```
+
+Install
+
+```
+mkdir -p ~/.terraform.d/plugins/<OS>_<ARCH>
+mv terraform-provider-striketracker ~/.terraform.d/plugins/<OS>_<ARCH>/
+```
+
+# Getting Started (Usage)
+`terraform init`
+```
+provider "striketracker" {
+    authorization_header_key = ""
+    application_id = ""
+}
+```
+
+
 
 # Resources
 Resources define infrastructure at the Striketracker/Highwinds CDN.

@@ -20,7 +20,8 @@ cover: ## Generate coverage report
 	go tool cover --html=wurlwind.out
 
 build: ## Build plugin binary
-	go build -o terraform-provider-striketracker
+	#GO111MODULE=on go build -mod=vendor -o terraform-provider-striketracker
+	GO111MODULE=on go build -o terraform-provider-striketracker
 
 init: ## Init terraform to discover built plugin
 	terraform init
