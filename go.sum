@@ -146,7 +146,7 @@ github.com/hashicorp/go-azure-helpers v0.0.0-20190129193224-166dfd221bb2/go.mod 
 github.com/hashicorp/go-checkpoint v0.5.0/go.mod h1:7nfLNL10NsxqO4iWuW6tWW0HjZuDrwkBuEQsVcpCOgg=
 github.com/hashicorp/go-cleanhttp v0.5.0 h1:wvCrVc9TjDls6+YGAF2hAifE1E5U1+b4tH6KdvN3Gig=
 github.com/hashicorp/go-cleanhttp v0.5.0/go.mod h1:JpRdi6/HCYpAwUzNwuwqhbovhLtngrth3wmdIIUrZ80=
-github.com/hashicorp/go-getter v1.3.1-0.20190627223108-da0323b9545e h1:ZdH5PWRoGRSD97I15MqV/D5CNG6QOiq4/pYfdJWW/to=
+github.com/hashicorp/go-getter v1.3.1-0.20190627223108-da0323b9545e h1:6krcdHPiS+aIP9XKzJzSahfjD7jG7Z+4+opm0z39V1M=
 github.com/hashicorp/go-getter v1.3.1-0.20190627223108-da0323b9545e/go.mod h1:/O1k/AizTN0QmfEKknCYGvICeyKUDqCYA8vvWtGWDeQ=
 github.com/hashicorp/go-hclog v0.0.0-20180709165350-ff2cf002a8dd/go.mod h1:9bjs9uLqI8l75knNv3lV1kA55veR+WUPSiKIWcQHudI=
 github.com/hashicorp/go-hclog v0.0.0-20181001195459-61d530d6c27f h1:Yv9YzBlAETjy6AOX9eLBZ3nshNVRREgerT/3nvxlGho=
@@ -182,7 +182,7 @@ github.com/hashicorp/logutils v1.0.0 h1:dLEQVugN8vlakKOUE3ihGLTZJRB4j+M2cdTm/ORI
 github.com/hashicorp/logutils v1.0.0/go.mod h1:QIAnNjmIWmVIIkWDTG1z5v++HQmx9WQRO+LraFDTW64=
 github.com/hashicorp/memberlist v0.1.0/go.mod h1:ncdBp14cuox2iFOq3kDiquKU6fqsTBc3W6JvZwjxxsE=
 github.com/hashicorp/serf v0.0.0-20160124182025-e4ec8cc423bb/go.mod h1:h/Ru6tmZazX7WO/GDmwdpS975F019L4t5ng5IgwbNrE=
-github.com/hashicorp/terraform v0.12.8 h1:ZK7EyFM2i8lUIO2zwTF6OesmBUIyHr55NxbEJwmZ7ss=
+github.com/hashicorp/terraform v0.12.8 h1:51Z5K8oj42KZi0IiTf99wMTujDpvsTd3eaF1k5z1URk=
 github.com/hashicorp/terraform v0.12.8/go.mod h1:8rXMj8q+hRsR/28WWWyiHu1GEDSjWaHPoV14E66X5VU=
 github.com/hashicorp/terraform-config-inspect v0.0.0-20190821133035-82a99dc22ef4 h1:fTkL0YwjohGyN7AqsDhz6bwcGBpT+xBqi3Qhpw58Juw=
 github.com/hashicorp/terraform-config-inspect v0.0.0-20190821133035-82a99dc22ef4/go.mod h1:JDmizlhaP5P0rYTTZB0reDMefAiJyfWPEtugV4in1oI=
@@ -268,8 +268,8 @@ github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQ
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
-github.com/openwurl/wurlwind v0.0.0-20190909185455-f9f0a76e8d0a h1:E39EpxkEPXsZS2aPJn6KqXLnNUxSIgPEhyQlES8R1sc=
-github.com/openwurl/wurlwind v0.0.0-20190909185455-f9f0a76e8d0a/go.mod h1:96Q3jxt66cTCEOGepy3VQjH6nMV9T7No17wlR1FDhy4=
+github.com/openwurl/wurlwind v0.0.0-20190913072758-e7ad7bcb913b h1:QIB8AXAD+JPTDNj67ErWqcoLuOvCkkf6haD3mtxzVRY=
+github.com/openwurl/wurlwind v0.0.0-20190913072758-e7ad7bcb913b/go.mod h1:pn3ogLkjaTcP1vZqQ3wZRGlQgdWNE1UCSAZjVRele6A=
 github.com/openzipkin/zipkin-go v0.1.1/go.mod h1:NtoC/o8u3JlF1lSlyPNswIbeQH9bJTmOf0Erfk+hxe8=
 github.com/openzipkin/zipkin-go v0.1.6/go.mod h1:QgAqvLzwWbR/WpD4A3cGpPtJrZXNIiJc5AZX7/PBEpw=
 github.com/packer-community/winrmcp v0.0.0-20180102160824-81144009af58/go.mod h1:f6Izs6JvFTdnRbziASagjZ2vmf55NSIkC/weStxCHqk=
@@ -345,8 +345,6 @@ github.com/ulikunitz/xz v0.5.5/go.mod h1:2bypXElzHzzJZwzH67Y6wb67pO62Rzfn7BSiF4A
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
 github.com/vmihailenco/msgpack v4.0.1+incompatible h1:RMF1enSPeKTlXrXdOcqjFUElywVZjjC6pqse21bKbEU=
 github.com/vmihailenco/msgpack v4.0.1+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
-github.com/wurlinc/hls-config v0.0.0-20190511002729-10a112b30d34 h1:HjrxLh/XLNkcF22jiXv0LmQ1U3gKOexhQXkjSZjU9DI=
-github.com/wurlinc/hls-config v0.0.0-20190511002729-10a112b30d34/go.mod h1:gb2d0AwYXFiU8WYBL/kH6DZB/kTAzgqvYjVUsTNLTd4=
 github.com/xanzy/ssh-agent v0.2.1/go.mod h1:mLlQY/MoOhWBj+gOGMQkOeiEvkx+8pJSI+0Bx9h2kr4=
 github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/xlab/treeprint v0.0.0-20161029104018-1d6e34225557/go.mod h1:ce1O1j6UtZfjr22oyGxGLbauSBp2YVXpARAosm7dHBg=

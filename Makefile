@@ -21,7 +21,7 @@ cover: ## Generate coverage report
 
 build: ## Build plugin binary
 	#GO111MODULE=on go build -mod=vendor -o terraform-provider-striketracker
-	GO111MODULE=on go build -o terraform-provider-striketracker
+	go build -o terraform-provider-striketracker
 
 init: ## Init terraform to discover built plugin
 	terraform init
