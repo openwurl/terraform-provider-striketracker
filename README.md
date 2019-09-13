@@ -1,4 +1,4 @@
-Terraform Provider For Striketracker
+Terraform Provider For Striketracker [![GoDoc](https://godoc.org/github.com/openwurl/terraform-provider-striketracker?status.svg)](https://godoc.org/github.com/openwurl/terraform-provider-striketracker) ![GoVer](https://img.shields.io/badge/Go-1.13-blue)
 ==================
 
 - Website: https://www.terraform.io
