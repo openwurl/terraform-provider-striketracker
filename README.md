@@ -19,25 +19,23 @@ This terraform provider plugin is maintained by the Engineering team at [Wurl](h
 # Requirements
 
 - [Terraform](https://www.terraform.io/downloads.html) 0.10.x+
-- [Go](https://golang.org/doc/install) 1.11+ (to build the provider plugin)
+- [Go](https://golang.org/doc/install) 1.13+ (to build the provider plugin)
 
-# Getting Started (Plugin)
+# Development
 
-This is rough and will be updated
+To develop against a local copy of wurlwind, uncomment 
+
+```replace github.com/openwurl/wurlwind v0.0.0-20190913072758-e7ad7bcb913b => ../wurlwind```
+
+in the [go.mod](go.mod) file. Be sure to comment out for commits.
+
+# Getting Started (Plugin) v1.13
 
 ```
-mkdir $GOPATH/src/github.com/openwurl; cd $GOPATH/src/github.com/openwurl
 git clone git@github.com:openwurl/terraform-provider-striketracker.git
-```
-
-Enter the directory and build
-
-```
-cd $GOPATH/src/github.com/openwurl/terraform-provider-striketracker.git
+cd terraform-provider-striketracker
 make build
 ```
-
-Install
 
 ```
 mkdir -p ~/.terraform.d/plugins/<OS>_<ARCH>
