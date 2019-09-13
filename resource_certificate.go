@@ -133,7 +133,7 @@ func resourceCertificateRead(d *schema.ResourceData, m interface{}) error {
 
 	d.Set("ca_bundle", certResource.CABundle)
 	d.Set("certificate", certResource.Certificate)
-	d.Set("certificate_information", certResource.CertificateInformation)
+	d.Set("certificate_information", certResource.CertificateInformation) // This isn't working but I don't know why TypeMap doesn't take it
 	d.Set("ciphers", certResource.Ciphers)
 	d.Set("common_name", certResource.CommonName)
 	d.Set("created_date", certResource.CreatedDate)
