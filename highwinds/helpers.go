@@ -3,6 +3,7 @@ package highwinds
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 )
@@ -30,4 +31,9 @@ func ResourceImportParseHashID(input string) (string, string, error) {
 	}
 
 	return parts[0], parts[1], nil
+}
+
+func devLog(message string, opts ...interface{}) {
+	msg := fmt.Sprintf("===== [DEV] %s", message)
+	log.Printf(msg, opts...)
 }
