@@ -25,6 +25,7 @@ func Provider() *schema.Provider {
 			"striketracker_certificate":   resourceCertificate(),
 			"striketracker_host":          resourceHost(),
 			"striketracker_configuration": resourceConfiguration(),
+			"striketracker_scope":         resourceScope(),
 		},
 		ConfigureFunc: providerConfigure,
 	}

@@ -56,12 +56,17 @@ func resourceHost() *schema.Resource {
 			"scopes": &schema.Schema{
 				Description: "The scopes attached to this host",
 				Type:        schema.TypeMap,
-				Optional:    true,
+				Computed:    true,
 			},
 			"type": &schema.Schema{
 				Description: "The type of host",
 				Type:        schema.TypeString,
 				Optional:    true,
+			},
+			"root_scope_id": &schema.Schema{
+				Description: "The ID of the root CDS scope",
+				Type:        schema.TypeString,
+				Computed:    true,
 			},
 		},
 	}
@@ -91,14 +96,6 @@ func resourceHostCreate(d *schema.ResourceData, m interface{}) error {
 			})
 		}
 	}
-	/*
-		scopesList := d.Get("scopes").(map[string]string)
-		if len(scopesList) > 0 {
-			for scopeName, scope := range scopesList {
-
-			}
-		}
-	*/
 
 	ctx, cancel := getContext()
 	defer cancel()
@@ -107,6 +104,7 @@ func resourceHostCreate(d *schema.ResourceData, m interface{}) error {
 	if returnedModel != nil {
 		if returnedModel.HashCode != "" {
 			d.SetId(returnedModel.HashCode)
+			d.Set("root_scope_id", returnedModel.GetCDSScope())
 		}
 	}
 	if err != nil {
@@ -176,4 +174,8 @@ func buildServiceList(terraformServiceList *[]interface{}) *[]int {
 		hostScopeList[i] = serviceID.(int)
 	}
 	return &hostScopeList
+}
+
+func buildScopeList(terraformScopeList *[]interface{}) *[]int {
+	return nil
 }
