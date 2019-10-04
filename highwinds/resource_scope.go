@@ -1,6 +1,8 @@
 package highwinds
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
@@ -29,13 +31,30 @@ func resourceScope() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"parent_host": &schema.Schema{
+			"host_hash": &schema.Schema{
 				Description: "The hash code of the parent host this scope is being attached to",
 				Type:        schema.TypeString,
 				Required:    true,
 			},
 			"path": &schema.Schema{
 				Description: "The name of this configuration scope",
+				Type:        schema.TypeString,
+				Required:    true,
+				ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+					v := val.(string)
+					if string(v[0]) != "/" {
+						errs = append(errs, fmt.Errorf("No preceeding slash, invalid path"))
+					}
+					return warns, errs
+				},
+			},
+			"platform": &schema.Schema{
+				Description: "The delivery platform of this scope",
+				Type:        schema.TypeString,
+				Default:     "CDS",
+			},
+			"name": &schema.Schema{
+				Description: "The name of this scope",
 				Type:        schema.TypeString,
 				Required:    true,
 			},

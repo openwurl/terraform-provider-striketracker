@@ -53,11 +53,14 @@ func resourceHost() *schema.Resource {
 				},
 				Required: true,
 			},
-			"scopes": &schema.Schema{
-				Description: "The scopes attached to this host",
-				Type:        schema.TypeMap,
-				Computed:    true,
-			},
+			//"scopes": &schema.Schema{
+			//	Description: "The scopes attached to this host",
+			//	Type:        schema.TypeList,
+			//	Elem: schema.Resource{
+			//
+			//	},
+			//	Computed:    true,
+			//},
 			"type": &schema.Schema{
 				Description: "The type of host",
 				Type:        schema.TypeString,
@@ -155,7 +158,7 @@ func resourceHostRead(d *schema.ResourceData, m interface{}) error {
 	d.Set("name", hostResource.Name)
 	d.Set("hash_code", hostResource.HashCode)
 	d.Set("services", hostResource.Services)
-	d.Set("scopes", hostResource.Scopes)
+	//d.Set("scopes", hostResource.Scopes)
 	d.Set("type", hostResource.Type)
 
 	return nil

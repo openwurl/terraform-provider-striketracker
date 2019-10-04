@@ -34,9 +34,14 @@ func resourceConfiguration() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"parent_host": &schema.Schema{
+			"host_hash": &schema.Schema{
 				Description: "The hash code of the parent host this scope is being attached to",
 				Type:        schema.TypeString,
+				Required:    true,
+			},
+			"scope_id": &schema.Schema{
+				Description: "The ID of the scope this configuration will be attached to",
+				Type:        schema.TypeInt,
 				Required:    true,
 			},
 			"name": &schema.Schema{
