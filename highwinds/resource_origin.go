@@ -132,8 +132,6 @@ func resourceOrigin() *schema.Resource {
 				Type:        schema.TypeBool,
 				Optional:    true,
 			},
-			// CreatedDate Computed
-			// UpdatedDate Computed
 		},
 	}
 }

@@ -2,7 +2,6 @@ package highwinds
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/striketracker"
@@ -11,6 +10,41 @@ import (
 )
 
 func resourceHost() *schema.Resource {
+	scopeList := &schema.Schema{
+		Type:        schema.TypeList,
+		Computed:    true,
+		Optional:    false,
+		Description: "The scopes that have been attached to this service",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"platform": {
+					Type:        schema.TypeString,
+					Computed:    true,
+					Description: "The platform this scope operates on",
+				},
+				"path": {
+					Type:        schema.TypeString,
+					Computed:    true,
+					Description: "The path this scope routes",
+				},
+				"id": {
+					Type:        schema.TypeString,
+					Computed:    true,
+					Description: "The ID of the scope that is attached",
+				},
+			},
+		},
+	}
+
+	servicesList := &schema.Schema{
+		Description: "The enabled services for the host",
+		Type:        schema.TypeList,
+		Elem: &schema.Schema{
+			Type: schema.TypeInt,
+		},
+		Required: true,
+	}
+
 	return &schema.Resource{
 		Create: resourceHostCreate,
 		Read:   resourceHostRead,
@@ -45,31 +79,18 @@ func resourceHost() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
-			"services": &schema.Schema{
-				Description: "The enabled services for the host",
-				Type:        schema.TypeList,
-				Elem: &schema.Schema{
-					Type: schema.TypeInt,
-				},
-				Required: true,
-			},
-			//"scopes": &schema.Schema{
-			//	Description: "The scopes attached to this host",
-			//	Type:        schema.TypeList,
-			//	Elem: schema.Resource{
-			//
-			//	},
-			//	Computed:    true,
-			//},
+			"services": servicesList,
+			"scopes":   scopeList,
 			"type": &schema.Schema{
 				Description: "The type of host",
 				Type:        schema.TypeString,
-				Optional:    true,
+				Computed:    true,
 			},
 			"root_scope_id": &schema.Schema{
 				Description: "The ID of the root CDS scope",
 				Type:        schema.TypeString,
 				Computed:    true,
+				Optional:    false,
 			},
 		},
 	}
@@ -84,14 +105,13 @@ func resourceHostCreate(d *schema.ResourceData, m interface{}) error {
 	c := m.(*striketracker.Client)
 	h := hosts.New(c)
 	accountHash := d.Get("account_hash").(string)
+
 	host := &models.Host{
 		Name: d.Get("name").(string),
 	}
 	servicesList := d.Get("services").([]interface{})
 	serviceList := *buildServiceList(&servicesList)
-	log.Printf("============================")
-	log.Printf("%v", serviceList)
-	log.Printf("============================")
+
 	if len(serviceList) > 0 {
 		for _, service := range servicesList {
 			host.Services = append(host.Services, &models.DeliveryService{
@@ -107,7 +127,7 @@ func resourceHostCreate(d *schema.ResourceData, m interface{}) error {
 	if returnedModel != nil {
 		if returnedModel.HashCode != "" {
 			d.SetId(returnedModel.HashCode)
-			d.Set("root_scope_id", returnedModel.GetCDSScope())
+			d.Set("root_scope_id", fmt.Sprintf("%d", returnedModel.GetCDSScope().ID))
 		}
 	}
 	if err != nil {
@@ -123,13 +143,61 @@ func resourceHostCreate(d *schema.ResourceData, m interface{}) error {
 	Update
 */
 func resourceHostUpdate(d *schema.ResourceData, m interface{}) error {
-	return nil
+	d.Partial(true)
+	c := m.(*striketracker.Client)
+	h := hosts.New(c)
+	accountHash := d.Get("account_hash").(string)
+
+	host := &models.Host{
+		Name: d.Get("name").(string),
+	}
+	servicesList := d.Get("services").([]interface{})
+	serviceList := *buildServiceList(&servicesList)
+
+	if len(serviceList) > 0 {
+		for _, service := range servicesList {
+			host.Services = append(host.Services, &models.DeliveryService{
+				ID: service.(int),
+			})
+		}
+	}
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	returnedModel, err := h.Update(ctx, accountHash, d.Id(), host)
+	if returnedModel != nil {
+		if returnedModel.HashCode != "" {
+			d.SetId(returnedModel.HashCode)
+			d.Set("root_scope_id", fmt.Sprintf("%d", returnedModel.GetCDSScope().ID))
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	d.Partial(false)
+	return resourceHostRead(d, m)
 }
 
 /*
 	Delete
 */
 func resourceHostDelete(d *schema.ResourceData, m interface{}) error {
+	d.Partial(true)
+	c := m.(*striketracker.Client)
+	h := hosts.New(c)
+	accountHash := d.Get("account_hash").(string)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	err := h.Delete(ctx, accountHash, d.Id())
+	if err != nil {
+		return err
+	}
+	d.Partial(false)
+	d.SetId("")
 	return nil
 }
 
@@ -155,10 +223,15 @@ func resourceHostRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Resource %s does not exist", d.Id())
 	}
 
+	d.Set("root_scope_id", fmt.Sprintf("%d", hostResource.GetCDSScope().ID))
 	d.Set("name", hostResource.Name)
 	d.Set("hash_code", hostResource.HashCode)
 	d.Set("services", hostResource.Services)
-	//d.Set("scopes", hostResource.Scopes)
+
+	scopesList := buildScopesList(hostResource.Scopes)
+	if err := d.Set("scopes", scopesList); err != nil {
+		return fmt.Errorf("error setting scopes on %s: %v", hostResource.Name, err)
+	}
 	d.Set("type", hostResource.Type)
 
 	return nil
@@ -168,7 +241,23 @@ func resourceHostRead(d *schema.ResourceData, m interface{}) error {
 	Exists
 */
 func resourceHostExists(d *schema.ResourceData, m interface{}) (bool, error) {
-	return false, nil
+	c := m.(*striketracker.Client)
+	h := hosts.New(c)
+	accountHash := d.Get("account_hash").(string)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	hostResource, err := h.Get(ctx, accountHash, d.Id())
+	if err != nil {
+		return false, nil
+	}
+
+	if hostResource == nil {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func buildServiceList(terraformServiceList *[]interface{}) *[]int {
@@ -179,6 +268,14 @@ func buildServiceList(terraformServiceList *[]interface{}) *[]int {
 	return &hostScopeList
 }
 
-func buildScopeList(terraformScopeList *[]interface{}) *[]int {
-	return nil
+func buildScopesList(scopes []*models.Scope) []map[string]string {
+	scopesList := []map[string]string{}
+	for _, scope := range scopes {
+		sc := map[string]string{}
+		sc["id"] = fmt.Sprintf("%d", scope.ID)
+		sc["platform"] = scope.Platform
+		sc["path"] = scope.Path
+		scopesList = append(scopesList, sc)
+	}
+	return scopesList
 }

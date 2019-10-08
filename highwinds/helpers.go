@@ -35,5 +35,7 @@ func ResourceImportParseHashID(input string) (string, string, error) {
 
 func devLog(message string, opts ...interface{}) {
 	msg := fmt.Sprintf("===== [DEV] %s", message)
+	log.Println("============================================")
 	log.Printf(msg, opts...)
+	log.Println("============================================")
 }

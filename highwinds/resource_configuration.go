@@ -2,11 +2,14 @@ package highwinds
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/pkg/utilities"
+	"github.com/openwurl/wurlwind/striketracker"
 	"github.com/openwurl/wurlwind/striketracker/models"
+	"github.com/openwurl/wurlwind/striketracker/services/configuration"
 )
 
 func resourceConfiguration() *schema.Resource {
@@ -18,7 +21,7 @@ func resourceConfiguration() *schema.Resource {
 			Schema: map[string]*schema.Schema{
 				"primary": {
 					Type:        schema.TypeInt,
-					Required:    true,
+					Optional:    true,
 					Description: "The primary origin for this configuration",
 				},
 				"secondary": {
@@ -35,9 +38,10 @@ func resourceConfiguration() *schema.Resource {
 			},
 		},
 	}
+
 	originPullPolicy := &schema.Schema{
 		Type:        schema.TypeList,
-		Required:    false,
+		Optional:    true,
 		Description: "Policy rules for managing origin pull cache behavior",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
@@ -110,7 +114,7 @@ func resourceConfiguration() *schema.Resource {
 
 	cacheControl := &schema.Schema{
 		Type:        schema.TypeList,
-		Required:    false,
+		Optional:    true,
 		Description: "Cache control rules",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
@@ -130,7 +134,7 @@ func resourceConfiguration() *schema.Resource {
 
 	compression := &schema.Schema{
 		Type:        schema.TypeMap,
-		Required:    false,
+		Optional:    true,
 		Description: "GZIP and mime rules",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
@@ -165,7 +169,7 @@ func resourceConfiguration() *schema.Resource {
 
 	staticHeader := &schema.Schema{
 		Type:        schema.TypeList,
-		Required:    false,
+		Optional:    true,
 		Description: "Static headers to cache from origin pull",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
@@ -212,10 +216,26 @@ func resourceConfiguration() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
+			"root_id": &schema.Schema{
+				Description: "The ID of the configuration if it is the root scope",
+				Type:        schema.TypeInt,
+				Optional:    true,
+			},
 			"name": &schema.Schema{
 				Description: "The name of this configuration scope",
 				Type:        schema.TypeString,
 				Required:    true,
+			},
+			"path": &schema.Schema{
+				Description: "The path of this configuration scope",
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "/",
+			},
+			"platform": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Default:  "CDS",
 			},
 			"hostnames": &schema.Schema{
 				Description: "Hostnames to be associated with this configuration",
@@ -280,10 +300,20 @@ func resourceConfiguration() *schema.Resource {
 				Default:     true,
 				Optional:    true,
 			},
-			"compression":      compression,
-			"static_header":    staticHeader, // is []
-			"http_methods":     &schema.Schema{},
-			"access_logs":      &schema.Schema{},
+			"compression":   compression,
+			"static_header": staticHeader, // is []
+			"http_methods": &schema.Schema{
+				Description: "What to pass through in the methods",
+				Type:        schema.TypeString,
+				Default:     "*",
+				Optional:    true,
+			},
+			"access_logs": &schema.Schema{
+				Description: "Whether or not to enable access logs",
+				Type:        schema.TypeBool,
+				Default:     true,
+				Optional:    true,
+			},
 			"origin_pull_host": originPullHost,
 		},
 	}
@@ -293,6 +323,55 @@ func resourceConfiguration() *schema.Resource {
 	Create
 */
 func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
+	d.Partial(true)
+
+	if id := d.Get("root_id").(int); id != 0 {
+		d.SetId(fmt.Sprintf("%d", id))
+		d.Partial(false)
+		return resourceConfigurationRead(d, m)
+	}
+
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	newConfiguration := &models.Configuration{
+		AccessLogs: &models.AccessLogs{
+			Enabled: d.Get("access_logs").(bool),
+		},
+		Scope: models.Scope{
+			Name:     d.Get("name").(string),
+			Platform: d.Get("platform").(string),
+			Path:     d.Get("path").(string),
+		},
+	}
+
+	hostnamesList := d.Get("hostnames").([]interface{})
+	hostnameList := *buildHostnameList(&hostnamesList)
+	if len(hostnameList) > 0 {
+		for _, hostname := range hostnameList {
+			newConfiguration.Hostname = append(newConfiguration.Hostname, &models.ConfigurationHostname{
+				Domain: hostname,
+			})
+		}
+	}
+
+	returnedModel, err := conf.Create(ctx, accountHash, hostHash, newConfiguration)
+	if returnedModel != nil {
+		if returnedModel.ID != 0 {
+			d.SetId(fmt.Sprintf("%d", returnedModel.ID))
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	d.Partial(false)
+
 	return resourceConfigurationRead(d, m)
 }
 
@@ -300,6 +379,47 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 	Update
 */
 func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
+	d.Partial(true)
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+
+	ctx, cancel := getContext()
+	defer cancel()
+
+	newConfiguration := &models.Configuration{
+		AccessLogs: &models.AccessLogs{
+			Enabled: d.Get("access_logs").(bool),
+		},
+		Scope: models.Scope{
+			Name:     d.Get("name").(string),
+			Platform: d.Get("platform").(string),
+			Path:     d.Get("path").(string),
+		},
+	}
+
+	hostnamesList := d.Get("hostnames").([]interface{})
+	hostnameList := *buildHostnameList(&hostnamesList)
+	if len(hostnameList) > 0 {
+		for _, hostname := range hostnameList {
+			newConfiguration.Hostname = append(newConfiguration.Hostname, &models.ConfigurationHostname{
+				Domain: hostname,
+			})
+		}
+	}
+
+	returnedModel, err := conf.Create(ctx, accountHash, hostHash, newConfiguration)
+	if returnedModel != nil {
+		if returnedModel.Scope.ID != 0 {
+			d.SetId(fmt.Sprintf("%d", returnedModel.Scope.ID))
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	d.Partial(false)
 	return resourceConfigurationRead(d, m)
 }
 
@@ -307,6 +427,25 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 	Delete
 */
 func resourceConfigurationDelete(d *schema.ResourceData, m interface{}) error {
+	d.Partial(true)
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+	scopeID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return err
+	}
+	ctx, cancel := getContext()
+	defer cancel()
+
+	err = conf.Delete(ctx, accountHash, hostHash, scopeID, false)
+	if err != nil {
+		return err
+	}
+
+	d.Partial(false)
+	d.SetId("")
 	return nil
 }
 
@@ -314,6 +453,42 @@ func resourceConfigurationDelete(d *schema.ResourceData, m interface{}) error {
 	Read
 */
 func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+	scopeID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return err
+	}
+	ctx, cancel := getContext()
+	defer cancel()
+
+	confResource, err := conf.Get(ctx, accountHash, hostHash, scopeID)
+	if err != nil {
+		return err
+	}
+
+	if confResource == nil {
+		return fmt.Errorf("Resource %s does not exist", d.Id())
+	}
+
+	if &confResource.Scope == nil {
+		return fmt.Errorf("Resource %s has problem with Scope", d.Id())
+	}
+
+	if confResource.AccessLogs == nil {
+		return fmt.Errorf("Resource %s has problem with access_logs", d.Id())
+	}
+
+	devLog("%v", confResource.Name)
+
+	d.Set("name", confResource.Name)
+	d.Set("platform", confResource.Platform)
+	d.Set("path", confResource.Path)
+	d.Set("access_logs", confResource.AccessLogs.Enabled)
+	//d.Set("path", confResource.Path)
+
 	return nil
 }
 
@@ -321,5 +496,47 @@ func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
 	Exists
 */
 func resourceConfigurationExists(d *schema.ResourceData, m interface{}) (bool, error) {
-	return false, nil
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+	scopeID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return false, err
+	}
+	ctx, cancel := getContext()
+	defer cancel()
+
+	confResource, err := conf.Get(ctx, accountHash, hostHash, scopeID)
+	if err != nil {
+		return false, nil
+	}
+
+	if confResource == nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+/*
+	Helpers
+*/
+
+func buildHostnameList(terraformHostnameList *[]interface{}) *[]string {
+	hostnames := make([]string, len(*terraformHostnameList))
+	for i, hostname := range *terraformHostnameList {
+		hostnames[i] = hostname.(string)
+	}
+	return &hostnames
+}
+
+func hostnameListToObject(hostnameList *[]string) []*models.ConfigurationHostname {
+	hostnames := make([]*models.ConfigurationHostname, len(*hostnameList))
+	for _, hostname := range *hostnameList {
+		hostnames = append(hostnames, &models.ConfigurationHostname{
+			Domain: hostname,
+		})
+	}
+	return hostnames
 }
