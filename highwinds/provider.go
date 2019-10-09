@@ -21,10 +21,11 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"striketracker_origin":        resourceOrigin(),
-			"striketracker_certificate":   resourceCertificate(),
-			"striketracker_host":          resourceHost(),
-			"striketracker_configuration": resourceConfiguration(),
+			"striketracker_origin":                resourceOrigin(),
+			"striketracker_certificate":           resourceCertificate(),
+			"striketracker_host":                  resourceHost(),
+			"striketracker_configuration":         resourceConfiguration(),
+			"striketracker_default_configuration": defaultResourceConfiguration(),
 		},
 		ConfigureFunc: providerConfigure,
 	}
