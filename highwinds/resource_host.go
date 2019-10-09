@@ -123,6 +123,8 @@ func resourceHostCreate(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
+	devLog("Creating host %s", host.Name)
+
 	returnedModel, err := h.Create(ctx, accountHash, host)
 	if returnedModel != nil {
 		if returnedModel.HashCode != "" {
@@ -212,7 +214,7 @@ func resourceHostRead(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	devLog("Fetching host %s", d.Id())
+	devLog("Reading host %s", d.Id())
 
 	hostResource, err := h.Get(ctx, accountHash, d.Id())
 	if err != nil {

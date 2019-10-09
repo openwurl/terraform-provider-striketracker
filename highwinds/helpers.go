@@ -39,3 +39,15 @@ func devLog(message string, opts ...interface{}) {
 	log.Printf(msg, opts...)
 	log.Println("============================================")
 }
+
+// ResourceConfigurationParseHashID configuration scopes have an additional field required
+// You need account hash, host hash, and SCOPE ID to import
+func ResourceConfigurationParseHashID(input string) (string, string, string, error) {
+	parts := strings.SplitN(input, "/", 3)
+
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return "", "", "", fmt.Errorf(ErrBadImportParse, input)
+	}
+
+	return parts[0], parts[1], parts[3], nil
+}

@@ -54,12 +54,13 @@ func resourceConfiguration() *schema.Resource {
 		Importer: &schema.ResourceImporter{
 			State: func(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
 				// TODO: These needs expanded to account for host hash as well
-				accountHash, resourceID, err := ResourceImportParseHashID(d.Id())
+				accountHash, hostHash, scopeID, err := ResourceConfigurationParseHashID(d.Id())
 				if err != nil {
 					return nil, err
 				}
 				d.Set("account_hash", accountHash)
-				d.SetId(resourceID)
+				d.Set("host_hash", hostHash)
+				d.SetId(scopeID)
 
 				return []*schema.ResourceData{d}, nil
 			},
@@ -94,16 +95,23 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	scopeMap := d.Get("scope").(map[string]string)
-	devLog("%v", scopeMap)
+	// Pull scope resource from HCL and process the interface
+	scopeMapRaw := d.Get("scope").(map[string]interface{})
 
-	newConfigurationScope := &models.Configuration{
-		Scope: &models.Scope{
-			Name:     scopeMap["name"],
-			Platform: scopeMap["platform"],
-			Path:     scopeMap["path"],
-		},
+	scopeMap := buildHostScopeList(scopeMapRaw)
+
+	// Weird bugfix because default isn't appearing in state sometimes
+	if scopeMap["platform"] == "" {
+		scopeMap["platform"] = "CDS"
 	}
+
+	newConfigurationScope := &models.ConfigurationCreate{
+		Name:     scopeMap["name"],
+		Platform: scopeMap["platform"],
+		Path:     scopeMap["path"],
+	}
+
+	devLog("Scope Config: %v", newConfigurationScope)
 
 	returnedModel, err := conf.Create(ctx, accountHash, hostHash, newConfigurationScope)
 	if returnedModel != nil {
@@ -124,6 +132,48 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 	Update
 */
 func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+	scopeID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return err
+	}
+	ctx, cancel := getContext()
+	defer cancel()
+
+	devLog("Preparing to update configuration %s/%s/%s", accountHash, hostHash, scopeID)
+
+	// Pull scope resource from HCL and process the interface
+	scopeMapRaw := d.Get("scope").(map[string]interface{})
+
+	scopeMap := buildHostScopeList(scopeMapRaw)
+
+	// Weird bugfix because default isn't appearing in state
+	if scopeMap["platform"] == "" {
+		scopeMap["platform"] = "CDS"
+	}
+
+	// Build object
+	newConfigurationScope := &models.Configuration{
+		Scope: &models.Scope{
+			Name:     scopeMap["name"],
+			Platform: scopeMap["platform"],
+			Path:     scopeMap["path"],
+		},
+	}
+
+	devLog("Updating configuration %s/%s/%d", accountHash, hostHash, scopeID)
+	// Ship object
+	returnedModel, err := conf.Update(ctx, accountHash, hostHash, scopeID, newConfigurationScope)
+	if err != nil {
+		return err
+	}
+	if returnedModel == nil {
+		return fmt.Errorf("Something went wrong updating the scope %s, returned model is nil", d.Id())
+	}
+
 	return resourceConfigurationRead(d, m)
 }
 
@@ -131,6 +181,42 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 	Read
 */
 func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+	scopeID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return err
+	}
+	ctx, cancel := getContext()
+	defer cancel()
+
+	devLog("Reading configuration %s/%s/%d", accountHash, hostHash, scopeID)
+
+	// Fetch resource
+	configModel, err := conf.Get(ctx, accountHash, hostHash, scopeID)
+	if err != nil {
+		return err
+	}
+	if configModel == nil {
+		return fmt.Errorf("Resource %s does not exist", d.Id())
+	}
+
+	devLog("Setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
+
+	if configModel.Platform == "" || configModel.ID == 0 || configModel.Path == "" {
+		return fmt.Errorf("Scope is nil on %s/%s/%d", accountHash, hostHash, scopeID)
+	}
+
+	// Set state
+	d.Set("scope", buildHostScopeInterface(configModel))
+	//if err := d.Set("scope", configModel.Scope); err != nil {
+	//	return fmt.Errorf("error setting scope for resource %s: %s", d.Id(), err)
+	//}
+
+	devLog("Done setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
+
 	return nil
 }
 
@@ -170,3 +256,23 @@ func resourceConfigurationExists(d *schema.ResourceData, m interface{}) (bool, e
 /*
 	Helpers
 */
+
+func buildHostScopeList(scopes map[string]interface{}) map[string]string {
+	sc := make(map[string]string)
+	for scopeKey, scopeVal := range scopes {
+		sc[scopeKey] = scopeVal.(string)
+	}
+	return sc
+}
+
+func buildHostScopeInterface(scope *models.Configuration) map[string]interface{} {
+	scopeList := make(map[string]interface{})
+
+	scopeList["id"] = string(scope.ID)
+	scopeList["platform"] = scope.Platform
+	scopeList["path"] = scope.Path
+
+	devLog("Done building scope list: %v", scopeList)
+
+	return scopeList
+}
