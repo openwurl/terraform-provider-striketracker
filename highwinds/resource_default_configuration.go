@@ -26,8 +26,8 @@ func resourceDefaultConfigurationCreate(d *schema.ResourceData, m interface{}) e
 	accountHash := d.Get("account_hash").(string)
 	hostHash := d.Get("host_hash").(string)
 
-	if d.Get("path") != "/" {
-		return fmt.Errorf("Default scope path can only be [ / ]")
+	if d.Get("scope.path") != "/" {
+		return fmt.Errorf("Default scope path can only be [ / ], got: %s", d.Get("path"))
 	}
 
 	devLog("Fetching %s/%s", accountHash, hostHash)

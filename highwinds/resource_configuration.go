@@ -3,8 +3,10 @@ package highwinds
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/openwurl/wurlwind/pkg/utilities"
 	"github.com/openwurl/wurlwind/striketracker"
 	"github.com/openwurl/wurlwind/striketracker/models"
 	"github.com/openwurl/wurlwind/striketracker/services/configuration"
@@ -45,6 +47,149 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	originPullPolicySchema := &schema.Schema{
+		Type:        schema.TypeList,
+		Optional:    true,
+		Description: "Policy rules for managing origin pull cache behavior",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"expire_policy": {
+					Type:     schema.TypeString,
+					Optional: true,
+					Default:  "CACHE_CONTROL",
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						if !utilities.SliceContainsString(v, models.ValidExpirePolicies) {
+							errs = append(errs, fmt.Errorf("%q must be one of (%v), got %s", key, models.ValidExpirePolicies, val))
+						}
+						return warns, errs
+					},
+				},
+				"expire_seconds": {
+					Type:     schema.TypeInt,
+					Optional: true,
+					Default:  31536000,
+				},
+				"force_bypass_cache": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"honor_must_revalidate": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"honor_no_cache": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"honor_private": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"honor_smax_age": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"http_headers": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"must_revalidate_to_no_cache": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"no_cache_behavior": {
+					Type:     schema.TypeString,
+					Default:  "spec",
+					Optional: true,
+					// TODO: Validation spec or legacy
+				},
+				"update_http_headers_on_304_response": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"default_cache_behavior": {
+					Type:     schema.TypeString,
+					Default:  "ttl",
+					Optional: true,
+				},
+				"max_age_zero_to_no_cache": {
+					Type:     schema.TypeBool,
+					Optional: true,
+				},
+				"content_type_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"header_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"method_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"path_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+			},
+		},
+	}
+
+	originSchema := &schema.Schema{
+		Type:        schema.TypeMap,
+		Optional:    true,
+		Description: "Fields concerning the configuration of the origin",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"primary": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "The primary origin for this configuration",
+				},
+				"secondary": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "The secondary/failover origin for this configuration",
+				},
+				"path": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "The path to pull from at the specified origin",
+					// TODO: Validate is a path
+				},
+				"origin_pull_protocol": &schema.Schema{
+					Description: "The protocol to use for pulling from this origin. (http, https, or match)",
+					Type:        schema.TypeString,
+					Required:    true,
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						if !utilities.SliceContainsString(strings.ToLower(v), models.ValidPullProtocols) {
+							errs = append(errs, fmt.Errorf("%q must be one of (http, https, or match), got %s", key, val))
+						}
+						return warns, errs
+					},
+					StateFunc: func(val interface{}) string {
+						return strings.ToLower(val.(string))
+					},
+				},
+			},
+		},
+	}
+
 	return &schema.Resource{
 		Create: resourceConfigurationCreate,
 		Read:   resourceConfigurationRead,
@@ -76,7 +221,18 @@ func resourceConfiguration() *schema.Resource {
 				Type:        schema.TypeString,
 				Required:    true,
 			},
-			"scope": scopeSchema,
+			"hostnames": &schema.Schema{
+				Description: "Hostnames to be associated with this configuration",
+				Type:        schema.TypeList,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+				// TODO: Validation
+				Optional: true,
+			},
+			"origin":             originSchema,
+			"origin_pull_policy": originPullPolicySchema,
+			"scope":              scopeSchema,
 		},
 	}
 }
@@ -109,6 +265,21 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 		Name:     scopeMap["name"],
 		Platform: scopeMap["platform"],
 		Path:     scopeMap["path"],
+		OriginPullHost: &models.OriginPullHost{
+			Primary:   d.Get("origin.primary").(int),
+			Secondary: d.Get("origin.secondary").(int),
+			Path:      d.Get("origin.path").(string),
+		},
+	}
+
+	hostnamesList := d.Get("hostnames").([]interface{})
+	hostnameList := *buildHostnameList(&hostnamesList)
+	if len(hostnameList) > 0 {
+		for _, hostname := range hostnameList {
+			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
+				Domain: hostname,
+			})
+		}
 	}
 
 	devLog("Scope Config: %v", newConfigurationScope)
@@ -162,6 +333,16 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 			Platform: scopeMap["platform"],
 			Path:     scopeMap["path"],
 		},
+	}
+
+	hostnamesList := d.Get("hostnames").([]interface{})
+	hostnameList := *buildHostnameList(&hostnamesList)
+	if len(hostnameList) > 0 {
+		for _, hostname := range hostnameList {
+			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
+				Domain: hostname,
+			})
+		}
 	}
 
 	devLog("Updating configuration %s/%s/%d", accountHash, hostHash, scopeID)
@@ -256,6 +437,20 @@ func resourceConfigurationExists(d *schema.ResourceData, m interface{}) (bool, e
 /*
 	Helpers
 */
+
+func buildOriginPullPoliciesList(terraformPullPolicyList *[]interface{}) []*models.OriginPullPolicy {
+
+	// extract policies
+	return nil
+}
+
+func buildHostnameList(terraformHostnameList *[]interface{}) *[]string {
+	hostnames := make([]string, len(*terraformHostnameList))
+	for i, hostname := range *terraformHostnameList {
+		hostnames[i] = hostname.(string)
+	}
+	return &hostnames
+}
 
 func buildHostScopeList(scopes map[string]interface{}) map[string]string {
 	sc := make(map[string]string)
