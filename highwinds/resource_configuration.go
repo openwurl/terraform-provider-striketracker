@@ -1,6 +1,7 @@
 package highwinds
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -53,6 +54,11 @@ func resourceConfiguration() *schema.Resource {
 		Description: "Policy rules for managing origin pull cache behavior",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
 				"expire_policy": {
 					Type:     schema.TypeString,
 					Optional: true,
@@ -81,6 +87,11 @@ func resourceConfiguration() *schema.Resource {
 					Optional: true,
 				},
 				"honor_no_cache": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"honor_no_store": {
 					Type:     schema.TypeBool,
 					Default:  true,
 					Optional: true,
@@ -186,6 +197,22 @@ func resourceConfiguration() *schema.Resource {
 						return strings.ToLower(val.(string))
 					},
 				},
+				"redirect_action": &schema.Schema{
+					Description: "The protocol to use for pulling from this origin. (proxy, follow)",
+					Type:        schema.TypeString,
+					Required:    true,
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						valid := []string{"proxy", "follow"}
+						if !utilities.SliceContainsString(strings.ToLower(v), valid) {
+							errs = append(errs, fmt.Errorf("%q must be one of (proxy, follow), got %s", key, val))
+						}
+						return warns, errs
+					},
+					StateFunc: func(val interface{}) string {
+						return strings.ToLower(val.(string))
+					},
+				},
 			},
 		},
 	}
@@ -251,39 +278,16 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	// Pull scope resource from HCL and process the interface
-	scopeMapRaw := d.Get("scope").(map[string]interface{})
-
-	scopeMap := buildHostScopeList(scopeMapRaw)
-
-	// Weird bugfix because default isn't appearing in state sometimes
-	if scopeMap["platform"] == "" {
-		scopeMap["platform"] = "CDS"
-	}
-
-	newConfigurationScope := &models.ConfigurationCreate{
-		Name:     scopeMap["name"],
-		Platform: scopeMap["platform"],
-		Path:     scopeMap["path"],
-		OriginPullHost: &models.OriginPullHost{
-			Primary:   d.Get("origin.primary").(int),
-			Secondary: d.Get("origin.secondary").(int),
-			Path:      d.Get("origin.path").(string),
-		},
-	}
-
-	hostnamesList := d.Get("hostnames").([]interface{})
-	hostnameList := *buildHostnameList(&hostnamesList)
-	if len(hostnameList) > 0 {
-		for _, hostname := range hostnameList {
-			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
-				Domain: hostname,
-			})
-		}
-	}
+	// Build our model to send
+	newConfigurationScope := buildCreateScopeConfiguration(d)
 
 	devLog("Scope Config: %v", newConfigurationScope)
+	devLog("Scope Config Pullhost: %v", newConfigurationScope.OriginPullHost)
 
+	test, _ := json.Marshal(newConfigurationScope)
+	devLog("BEFORE: %s", string(test))
+
+	// Send model
 	returnedModel, err := conf.Create(ctx, accountHash, hostHash, newConfigurationScope)
 	if returnedModel != nil {
 		if returnedModel.ID != 0 {
@@ -294,9 +298,12 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 		return err
 	}
 
+	test2, _ := json.Marshal(returnedModel)
+	devLog("AFTER: %s", string(test2))
+
 	d.Partial(false)
 
-	return resourceConfigurationRead(d, m)
+	return resourceConfigurationUpdate(d, m)
 }
 
 /*
@@ -316,34 +323,8 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 
 	devLog("Preparing to update configuration %s/%s/%s", accountHash, hostHash, scopeID)
 
-	// Pull scope resource from HCL and process the interface
-	scopeMapRaw := d.Get("scope").(map[string]interface{})
-
-	scopeMap := buildHostScopeList(scopeMapRaw)
-
-	// Weird bugfix because default isn't appearing in state
-	if scopeMap["platform"] == "" {
-		scopeMap["platform"] = "CDS"
-	}
-
-	// Build object
-	newConfigurationScope := &models.Configuration{
-		Scope: &models.Scope{
-			Name:     scopeMap["name"],
-			Platform: scopeMap["platform"],
-			Path:     scopeMap["path"],
-		},
-	}
-
-	hostnamesList := d.Get("hostnames").([]interface{})
-	hostnameList := *buildHostnameList(&hostnamesList)
-	if len(hostnameList) > 0 {
-		for _, hostname := range hostnameList {
-			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
-				Domain: hostname,
-			})
-		}
-	}
+	// Build our model to send
+	newConfigurationScope := buildScopeConfiguration(d)
 
 	devLog("Updating configuration %s/%s/%d", accountHash, hostHash, scopeID)
 	// Ship object
@@ -439,9 +420,37 @@ func resourceConfigurationExists(d *schema.ResourceData, m interface{}) (bool, e
 */
 
 func buildOriginPullPoliciesList(terraformPullPolicyList *[]interface{}) []*models.OriginPullPolicy {
-
+	policylist := []*models.OriginPullPolicy{}
 	// extract policies
-	return nil
+	for _, policy := range *terraformPullPolicyList {
+		devLog("POLICY: %v", policy)
+		thisMap := policy.(map[string]interface{})
+
+		newPolicy := &models.OriginPullPolicy{
+			Enabled:                        thisMap["enabled"].(bool),
+			ExpirePolicy:                   thisMap["expire_policy"].(string),
+			ExpireSeconds:                  thisMap["expire_seconds"].(int),
+			ForceBypassCache:               thisMap["force_bypass_cache"].(bool),
+			HonorMustRevalidate:            thisMap["honor_must_revalidate"].(bool),
+			HonorNoCache:                   thisMap["honor_no_cache"].(bool),
+			HonorNoStore:                   thisMap["honor_no_store"].(bool),
+			HonorPrivate:                   thisMap["honor_private"].(bool),
+			HonorSMaxAge:                   thisMap["honor_smax_age"].(bool),
+			HTTPHeaders:                    thisMap["http_headers"].(string),
+			MustRevalidateToNoCache:        thisMap["must_revalidate_to_no_cache"].(bool),
+			NoCacheBehavior:                thisMap["no_cache_behavior"].(string),
+			UpdateHTTPHeadersOn304Response: thisMap["update_http_headers_on_304_response"].(bool),
+			DefaultCacheBehavior:           thisMap["default_cache_behavior"].(string),
+			MaxAgeZeroToNoCache:            thisMap["max_age_zero_to_no_cache"].(bool),
+			ContentTypeFilter:              thisMap["content_type_filter"].(string),
+			HeaderFilter:                   thisMap["header_filter"].(string),
+			MethodFilter:                   thisMap["method_filter"].(string),
+			PathFilter:                     thisMap["path_filter"].(string),
+		}
+		policylist = append(policylist, newPolicy)
+	}
+
+	return policylist
 }
 
 func buildHostnameList(terraformHostnameList *[]interface{}) *[]string {
@@ -470,4 +479,176 @@ func buildHostScopeInterface(scope *models.Configuration) map[string]interface{}
 	devLog("Done building scope list: %v", scopeList)
 
 	return scopeList
+}
+
+func buildOriginMap(originMap map[string]interface{}) map[string]string {
+	raw := make(map[string]string)
+
+	for mapKey, mapVal := range originMap {
+		raw[mapKey] = mapVal.(string)
+	}
+
+	return raw
+}
+
+func buildCreateScopeConfiguration(d *schema.ResourceData) *models.ConfigurationCreate {
+	// Pull scope resource from HCL and process the interface
+	scopeMapRaw := d.Get("scope").(map[string]interface{})
+
+	scopeMap := buildHostScopeList(scopeMapRaw)
+
+	// Weird bugfix because default isn't appearing in state sometimes
+	if scopeMap["platform"] == "" {
+		scopeMap["platform"] = "CDS"
+	}
+
+	// Create base model
+	newConfigurationScope := &models.ConfigurationCreate{
+		Name:     scopeMap["name"],
+		Platform: scopeMap["platform"],
+		Path:     scopeMap["path"],
+		//OriginPullHost: originHost,
+	}
+
+	originRaw := d.Get("origin").(map[string]interface{})
+	originHost := buildOriginMap(originRaw)
+
+	// Attach origin pull protocol
+	if ra := originHost["redirect_action"]; ra != "" {
+		newConfigurationScope.OriginPull = &models.OriginPull{
+			RedirectAction: ra,
+		}
+	} else {
+		devLog("Origin pull redirect action not defined")
+	}
+
+	// Attach origin redirect action
+	if opp := originHost["origin_pull_protocol"]; opp != "" {
+		newConfigurationScope.OriginPullProtocol = &models.OriginPullProtocol{
+			Protocol: opp,
+		}
+	} else {
+		devLog("Origin pull protocol not defined")
+	}
+
+	// Attach primary/secondary origin host
+	originModel := &models.OriginPullHost{}
+	if ohPrimary, err := strconv.Atoi(originHost["primary"]); err == nil {
+		originModel.Primary = ohPrimary
+	} else {
+		devLog("Failed to parse primary: %v", err)
+	}
+	if ohSecondary, err := strconv.Atoi(originHost["secondary"]); err == nil {
+		originModel.Secondary = ohSecondary
+	} else {
+		devLog("Failed to parse secondary: %v", err)
+	}
+	if ohPath := originHost["path"]; ohPath != "" {
+		originModel.Path = ohPath
+	}
+	newConfigurationScope.OriginPullHost = originModel
+
+	// Append hostnames to model
+	hostnamesList := d.Get("hostnames").([]interface{})
+	hostnameList := *buildHostnameList(&hostnamesList)
+	if len(hostnameList) > 0 {
+		for _, hostname := range hostnameList {
+			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
+				Domain: hostname,
+			})
+		}
+	}
+
+	// Append origin pull policies to the model
+	originPullPolicyListRaw := d.Get("origin_pull_policy").([]interface{})
+	originPullPolicyList := buildOriginPullPoliciesList(&originPullPolicyListRaw)
+	if len(originPullPolicyList) > 0 {
+		for _, policy := range originPullPolicyList {
+			newConfigurationScope.OriginPullPolicy = append(newConfigurationScope.OriginPullPolicy, policy)
+		}
+	}
+
+	return newConfigurationScope
+}
+
+func buildScopeConfiguration(d *schema.ResourceData) *models.Configuration {
+	// Pull scope resource from HCL and process the interface
+	scopeMapRaw := d.Get("scope").(map[string]interface{})
+
+	scopeMap := buildHostScopeList(scopeMapRaw)
+
+	// Weird bugfix because default isn't appearing in state sometimes
+	if scopeMap["platform"] == "" {
+		scopeMap["platform"] = "CDS"
+	}
+
+	// Create base model
+	newConfigurationScope := &models.Configuration{
+		Scope: &models.Scope{
+			Name:     scopeMap["name"],
+			Platform: scopeMap["platform"],
+			Path:     scopeMap["path"],
+		},
+		//OriginPullHost: originHost,
+	}
+
+	originRaw := d.Get("origin").(map[string]interface{})
+	originHost := buildOriginMap(originRaw)
+
+	// Attach origin pull protocol
+	if ra := originHost["redirect_action"]; ra != "" {
+		newConfigurationScope.OriginPull = &models.OriginPull{
+			RedirectAction: ra,
+		}
+	} else {
+		devLog("Origin pull redirect action not defined")
+	}
+
+	// Attach origin redirect action
+	if opp := originHost["origin_pull_protocol"]; opp != "" {
+		newConfigurationScope.OriginPullProtocol = &models.OriginPullProtocol{
+			Protocol: opp,
+		}
+	} else {
+		devLog("Origin pull protocol not defined")
+	}
+
+	// Attach primary/secondary origin host
+	originModel := &models.OriginPullHost{}
+	if ohPrimary, err := strconv.Atoi(originHost["primary"]); err == nil {
+		originModel.Primary = ohPrimary
+	} else {
+		devLog("Failed to parse primary: %v", err)
+	}
+	if ohSecondary, err := strconv.Atoi(originHost["secondary"]); err == nil {
+		originModel.Secondary = ohSecondary
+	} else {
+		devLog("Failed to parse secondary: %v", err)
+	}
+	if ohPath := originHost["path"]; ohPath != "" {
+		originModel.Path = ohPath
+	}
+	newConfigurationScope.OriginPullHost = originModel
+
+	// Append hostnames to model
+	hostnamesList := d.Get("hostnames").([]interface{})
+	hostnameList := *buildHostnameList(&hostnamesList)
+	if len(hostnameList) > 0 {
+		for _, hostname := range hostnameList {
+			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
+				Domain: hostname,
+			})
+		}
+	}
+
+	// Append origin pull policies to the model
+	originPullPolicyListRaw := d.Get("origin_pull_policy").([]interface{})
+	originPullPolicyList := buildOriginPullPoliciesList(&originPullPolicyListRaw)
+	if len(originPullPolicyList) > 0 {
+		for _, policy := range originPullPolicyList {
+			newConfigurationScope.OriginPullPolicy = append(newConfigurationScope.OriginPullPolicy, policy)
+		}
+	}
+
+	return newConfigurationScope
 }
