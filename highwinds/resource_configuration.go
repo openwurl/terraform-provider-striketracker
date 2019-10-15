@@ -1,17 +1,20 @@
 package highwinds
 
 import (
-	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/pkg/utilities"
-	"github.com/openwurl/wurlwind/striketracker"
 	"github.com/openwurl/wurlwind/striketracker/models"
-	"github.com/openwurl/wurlwind/striketracker/services/configuration"
 )
+
+/*
+	TODO:
+		* The rest  of the configuration payload
+		* Read should set all of the known state
+		* Finish reverse engineering API
+*/
 
 func resourceConfiguration() *schema.Resource {
 
@@ -217,6 +220,41 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	requestModifications := &schema.Schema{
+		Type:        schema.TypeList,
+		Optional:    true,
+		Description: "Edge rules targeting the origin request",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"add_headers": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"flow_control": {
+					Type:     schema.TypeString,
+					Optional: true,
+					Default:  "next",
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						valid := []string{"next", "break"}
+						if !utilities.SliceContainsString(strings.ToLower(v), valid) {
+							errs = append(errs, fmt.Errorf("%q must be one of (next, break), got %s", key, val))
+						}
+						return warns, errs
+					},
+					StateFunc: func(val interface{}) string {
+						return strings.ToLower(val.(string))
+					},
+				},
+			},
+		},
+	}
+
 	return &schema.Resource{
 		Create: resourceConfigurationCreate,
 		Read:   resourceConfigurationRead,
@@ -257,398 +295,21 @@ func resourceConfiguration() *schema.Resource {
 				// TODO: Validation
 				Optional: true,
 			},
-			"origin":             originSchema,
-			"origin_pull_policy": originPullPolicySchema,
-			"scope":              scopeSchema,
+			"dns_hostnames": &schema.Schema{
+				Description: "Non default hostnames for use in DNS",
+				Type:        schema.TypeList,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+				Computed: true,
+			},
+			"origin":                    originSchema,
+			"origin_pull_policy":        originPullPolicySchema,
+			"scope":                     scopeSchema,
+			"origin_request_edge_rule":  requestModifications,
+			"origin_response_edge_rule": requestModifications,
+			"client_request_edge_rule":  requestModifications,
+			"client_response_edge_rule": requestModifications,
 		},
 	}
-}
-
-/*
-	Create
-*/
-func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
-	d.Partial(true)
-
-	c := m.(*striketracker.Client)
-	conf := configuration.New(c)
-	accountHash := d.Get("account_hash").(string)
-	hostHash := d.Get("host_hash").(string)
-
-	ctx, cancel := getContext()
-	defer cancel()
-
-	// Build our model to send
-	newConfigurationScope := buildCreateScopeConfiguration(d)
-
-	devLog("Scope Config: %v", newConfigurationScope)
-	devLog("Scope Config Pullhost: %v", newConfigurationScope.OriginPullHost)
-
-	test, _ := json.Marshal(newConfigurationScope)
-	devLog("BEFORE: %s", string(test))
-
-	// Send model
-	returnedModel, err := conf.Create(ctx, accountHash, hostHash, newConfigurationScope)
-	if returnedModel != nil {
-		if returnedModel.ID != 0 {
-			d.SetId(fmt.Sprintf("%d", returnedModel.ID))
-		}
-	}
-	if err != nil {
-		return err
-	}
-
-	test2, _ := json.Marshal(returnedModel)
-	devLog("AFTER: %s", string(test2))
-
-	d.Partial(false)
-
-	return resourceConfigurationUpdate(d, m)
-}
-
-/*
-	Update
-*/
-func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
-	c := m.(*striketracker.Client)
-	conf := configuration.New(c)
-	accountHash := d.Get("account_hash").(string)
-	hostHash := d.Get("host_hash").(string)
-	scopeID, err := strconv.Atoi(d.Id())
-	if err != nil {
-		return err
-	}
-	ctx, cancel := getContext()
-	defer cancel()
-
-	devLog("Preparing to update configuration %s/%s/%s", accountHash, hostHash, scopeID)
-
-	// Build our model to send
-	newConfigurationScope := buildScopeConfiguration(d)
-
-	devLog("Updating configuration %s/%s/%d", accountHash, hostHash, scopeID)
-	// Ship object
-	returnedModel, err := conf.Update(ctx, accountHash, hostHash, scopeID, newConfigurationScope)
-	if err != nil {
-		return err
-	}
-	if returnedModel == nil {
-		return fmt.Errorf("Something went wrong updating the scope %s, returned model is nil", d.Id())
-	}
-
-	return resourceConfigurationRead(d, m)
-}
-
-/*
-	Read
-*/
-func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
-	c := m.(*striketracker.Client)
-	conf := configuration.New(c)
-	accountHash := d.Get("account_hash").(string)
-	hostHash := d.Get("host_hash").(string)
-	scopeID, err := strconv.Atoi(d.Id())
-	if err != nil {
-		return err
-	}
-	ctx, cancel := getContext()
-	defer cancel()
-
-	devLog("Reading configuration %s/%s/%d", accountHash, hostHash, scopeID)
-
-	// Fetch resource
-	configModel, err := conf.Get(ctx, accountHash, hostHash, scopeID)
-	if err != nil {
-		return err
-	}
-	if configModel == nil {
-		return fmt.Errorf("Resource %s does not exist", d.Id())
-	}
-
-	devLog("Setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
-
-	if configModel.Platform == "" || configModel.ID == 0 || configModel.Path == "" {
-		return fmt.Errorf("Scope is nil on %s/%s/%d", accountHash, hostHash, scopeID)
-	}
-
-	// Set state
-	d.Set("scope", buildHostScopeInterface(configModel))
-	//if err := d.Set("scope", configModel.Scope); err != nil {
-	//	return fmt.Errorf("error setting scope for resource %s: %s", d.Id(), err)
-	//}
-
-	devLog("Done setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
-
-	return nil
-}
-
-/*
-	Delete
-*/
-func resourceConfigurationDelete(d *schema.ResourceData, m interface{}) error {
-	d.Partial(true)
-	c := m.(*striketracker.Client)
-	conf := configuration.New(c)
-	accountHash := d.Get("account_hash").(string)
-	hostHash := d.Get("host_hash").(string)
-	scopeID, err := strconv.Atoi(d.Id())
-	if err != nil {
-		return err
-	}
-	ctx, cancel := getContext()
-	defer cancel()
-
-	err = conf.Delete(ctx, accountHash, hostHash, scopeID, false)
-	if err != nil {
-		return err
-	}
-
-	d.Partial(false)
-	d.SetId("")
-	return nil
-}
-
-/*
-	Exists
-*/
-func resourceConfigurationExists(d *schema.ResourceData, m interface{}) (bool, error) {
-	return false, nil
-}
-
-/*
-	Helpers
-*/
-
-func buildOriginPullPoliciesList(terraformPullPolicyList *[]interface{}) []*models.OriginPullPolicy {
-	policylist := []*models.OriginPullPolicy{}
-	// extract policies
-	for _, policy := range *terraformPullPolicyList {
-		devLog("POLICY: %v", policy)
-		thisMap := policy.(map[string]interface{})
-
-		newPolicy := &models.OriginPullPolicy{
-			Enabled:                        thisMap["enabled"].(bool),
-			ExpirePolicy:                   thisMap["expire_policy"].(string),
-			ExpireSeconds:                  thisMap["expire_seconds"].(int),
-			ForceBypassCache:               thisMap["force_bypass_cache"].(bool),
-			HonorMustRevalidate:            thisMap["honor_must_revalidate"].(bool),
-			HonorNoCache:                   thisMap["honor_no_cache"].(bool),
-			HonorNoStore:                   thisMap["honor_no_store"].(bool),
-			HonorPrivate:                   thisMap["honor_private"].(bool),
-			HonorSMaxAge:                   thisMap["honor_smax_age"].(bool),
-			HTTPHeaders:                    thisMap["http_headers"].(string),
-			MustRevalidateToNoCache:        thisMap["must_revalidate_to_no_cache"].(bool),
-			NoCacheBehavior:                thisMap["no_cache_behavior"].(string),
-			UpdateHTTPHeadersOn304Response: thisMap["update_http_headers_on_304_response"].(bool),
-			DefaultCacheBehavior:           thisMap["default_cache_behavior"].(string),
-			MaxAgeZeroToNoCache:            thisMap["max_age_zero_to_no_cache"].(bool),
-			ContentTypeFilter:              thisMap["content_type_filter"].(string),
-			HeaderFilter:                   thisMap["header_filter"].(string),
-			MethodFilter:                   thisMap["method_filter"].(string),
-			PathFilter:                     thisMap["path_filter"].(string),
-		}
-		policylist = append(policylist, newPolicy)
-	}
-
-	return policylist
-}
-
-func buildHostnameList(terraformHostnameList *[]interface{}) *[]string {
-	hostnames := make([]string, len(*terraformHostnameList))
-	for i, hostname := range *terraformHostnameList {
-		hostnames[i] = hostname.(string)
-	}
-	return &hostnames
-}
-
-func buildHostScopeList(scopes map[string]interface{}) map[string]string {
-	sc := make(map[string]string)
-	for scopeKey, scopeVal := range scopes {
-		sc[scopeKey] = scopeVal.(string)
-	}
-	return sc
-}
-
-func buildHostScopeInterface(scope *models.Configuration) map[string]interface{} {
-	scopeList := make(map[string]interface{})
-
-	scopeList["id"] = string(scope.ID)
-	scopeList["platform"] = scope.Platform
-	scopeList["path"] = scope.Path
-
-	devLog("Done building scope list: %v", scopeList)
-
-	return scopeList
-}
-
-func buildOriginMap(originMap map[string]interface{}) map[string]string {
-	raw := make(map[string]string)
-
-	for mapKey, mapVal := range originMap {
-		raw[mapKey] = mapVal.(string)
-	}
-
-	return raw
-}
-
-func buildCreateScopeConfiguration(d *schema.ResourceData) *models.ConfigurationCreate {
-	// Pull scope resource from HCL and process the interface
-	scopeMapRaw := d.Get("scope").(map[string]interface{})
-
-	scopeMap := buildHostScopeList(scopeMapRaw)
-
-	// Weird bugfix because default isn't appearing in state sometimes
-	if scopeMap["platform"] == "" {
-		scopeMap["platform"] = "CDS"
-	}
-
-	// Create base model
-	newConfigurationScope := &models.ConfigurationCreate{
-		Name:     scopeMap["name"],
-		Platform: scopeMap["platform"],
-		Path:     scopeMap["path"],
-		//OriginPullHost: originHost,
-	}
-
-	originRaw := d.Get("origin").(map[string]interface{})
-	originHost := buildOriginMap(originRaw)
-
-	// Attach origin pull protocol
-	if ra := originHost["redirect_action"]; ra != "" {
-		newConfigurationScope.OriginPull = &models.OriginPull{
-			RedirectAction: ra,
-		}
-	} else {
-		devLog("Origin pull redirect action not defined")
-	}
-
-	// Attach origin redirect action
-	if opp := originHost["origin_pull_protocol"]; opp != "" {
-		newConfigurationScope.OriginPullProtocol = &models.OriginPullProtocol{
-			Protocol: opp,
-		}
-	} else {
-		devLog("Origin pull protocol not defined")
-	}
-
-	// Attach primary/secondary origin host
-	originModel := &models.OriginPullHost{}
-	if ohPrimary, err := strconv.Atoi(originHost["primary"]); err == nil {
-		originModel.Primary = ohPrimary
-	} else {
-		devLog("Failed to parse primary: %v", err)
-	}
-	if ohSecondary, err := strconv.Atoi(originHost["secondary"]); err == nil {
-		originModel.Secondary = ohSecondary
-	} else {
-		devLog("Failed to parse secondary: %v", err)
-	}
-	if ohPath := originHost["path"]; ohPath != "" {
-		originModel.Path = ohPath
-	}
-	newConfigurationScope.OriginPullHost = originModel
-
-	// Append hostnames to model
-	hostnamesList := d.Get("hostnames").([]interface{})
-	hostnameList := *buildHostnameList(&hostnamesList)
-	if len(hostnameList) > 0 {
-		for _, hostname := range hostnameList {
-			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
-				Domain: hostname,
-			})
-		}
-	}
-
-	// Append origin pull policies to the model
-	originPullPolicyListRaw := d.Get("origin_pull_policy").([]interface{})
-	originPullPolicyList := buildOriginPullPoliciesList(&originPullPolicyListRaw)
-	if len(originPullPolicyList) > 0 {
-		for _, policy := range originPullPolicyList {
-			newConfigurationScope.OriginPullPolicy = append(newConfigurationScope.OriginPullPolicy, policy)
-		}
-	}
-
-	return newConfigurationScope
-}
-
-func buildScopeConfiguration(d *schema.ResourceData) *models.Configuration {
-	// Pull scope resource from HCL and process the interface
-	scopeMapRaw := d.Get("scope").(map[string]interface{})
-
-	scopeMap := buildHostScopeList(scopeMapRaw)
-
-	// Weird bugfix because default isn't appearing in state sometimes
-	if scopeMap["platform"] == "" {
-		scopeMap["platform"] = "CDS"
-	}
-
-	// Create base model
-	newConfigurationScope := &models.Configuration{
-		Scope: &models.Scope{
-			Name:     scopeMap["name"],
-			Platform: scopeMap["platform"],
-			Path:     scopeMap["path"],
-		},
-		//OriginPullHost: originHost,
-	}
-
-	originRaw := d.Get("origin").(map[string]interface{})
-	originHost := buildOriginMap(originRaw)
-
-	// Attach origin pull protocol
-	if ra := originHost["redirect_action"]; ra != "" {
-		newConfigurationScope.OriginPull = &models.OriginPull{
-			RedirectAction: ra,
-		}
-	} else {
-		devLog("Origin pull redirect action not defined")
-	}
-
-	// Attach origin redirect action
-	if opp := originHost["origin_pull_protocol"]; opp != "" {
-		newConfigurationScope.OriginPullProtocol = &models.OriginPullProtocol{
-			Protocol: opp,
-		}
-	} else {
-		devLog("Origin pull protocol not defined")
-	}
-
-	// Attach primary/secondary origin host
-	originModel := &models.OriginPullHost{}
-	if ohPrimary, err := strconv.Atoi(originHost["primary"]); err == nil {
-		originModel.Primary = ohPrimary
-	} else {
-		devLog("Failed to parse primary: %v", err)
-	}
-	if ohSecondary, err := strconv.Atoi(originHost["secondary"]); err == nil {
-		originModel.Secondary = ohSecondary
-	} else {
-		devLog("Failed to parse secondary: %v", err)
-	}
-	if ohPath := originHost["path"]; ohPath != "" {
-		originModel.Path = ohPath
-	}
-	newConfigurationScope.OriginPullHost = originModel
-
-	// Append hostnames to model
-	hostnamesList := d.Get("hostnames").([]interface{})
-	hostnameList := *buildHostnameList(&hostnamesList)
-	if len(hostnameList) > 0 {
-		for _, hostname := range hostnameList {
-			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
-				Domain: hostname,
-			})
-		}
-	}
-
-	// Append origin pull policies to the model
-	originPullPolicyListRaw := d.Get("origin_pull_policy").([]interface{})
-	originPullPolicyList := buildOriginPullPoliciesList(&originPullPolicyListRaw)
-	if len(originPullPolicyList) > 0 {
-		for _, policy := range originPullPolicyList {
-			newConfigurationScope.OriginPullPolicy = append(newConfigurationScope.OriginPullPolicy, policy)
-		}
-	}
-
-	return newConfigurationScope
 }
