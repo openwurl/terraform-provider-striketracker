@@ -163,6 +163,19 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	deliverySchema := &schema.Schema{
+		Type:        schema.TypeMap,
+		Optional:    true,
+		Description: "Fields concerning the configuration of the site delivery",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"compression":   {},
+				"http_methods":  {},
+				"static_header": {},
+			},
+		},
+	}
+
 	originSchema := &schema.Schema{
 		Type:        schema.TypeMap,
 		Optional:    true,
@@ -206,7 +219,7 @@ func resourceConfiguration() *schema.Resource {
 					Required:    true,
 					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
 						v := val.(string)
-						valid := []string{"proxy", "follow"}
+						valid := models.ValidRedirectActions
 						if !utilities.SliceContainsString(strings.ToLower(v), valid) {
 							errs = append(errs, fmt.Errorf("%q must be one of (proxy, follow), got %s", key, val))
 						}
@@ -215,6 +228,24 @@ func resourceConfiguration() *schema.Resource {
 					StateFunc: func(val interface{}) string {
 						return strings.ToLower(val.(string))
 					},
+				},
+				"gzip": &schema.Schema{
+					Description: "Whether or not to request gzip'd content from origin",
+					Type:        schema.TypeBool,
+					Optional:    true,
+					Default:     true,
+				},
+				"persistent_connections": &schema.Schema{
+					Description: "Whether or not to maintain persistent connections to origin",
+					Type:        schema.TypeBool,
+					Optional:    true,
+					Default:     false,
+				},
+				"file_segmentation": &schema.Schema{
+					Description: "Whether or not to download and store files in small parts",
+					Type:        schema.TypeBool,
+					Optional:    true,
+					Default:     false,
 				},
 			},
 		},
@@ -250,6 +281,83 @@ func resourceConfiguration() *schema.Resource {
 					StateFunc: func(val interface{}) string {
 						return strings.ToLower(val.(string))
 					},
+				},
+			},
+		},
+	}
+
+	logsSchema := &schema.Schema{
+		Type:        schema.TypeMap,
+		Optional:    true,
+		Description: "Enable or disable logging for access and origin pull logs",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"access_logs": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"origin_pull_logs": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+			},
+		},
+	}
+
+	cacheControlSchema := &schema.Schema{
+		Type:        schema.TypeList,
+		Optional:    true,
+		Description: "Cache control rules for browser cache",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"must_revalidate": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"max_age": {
+					Type:     schema.TypeInt,
+					Optional: true,
+					Default:  31536000,
+				},
+				"synchronize_max_age": {
+					Type:        schema.TypeBool,
+					Default:     false,
+					Optional:    true,
+					Description: "Synchronize edge and browser cache",
+				},
+				"override": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Default:     "",
+					Description: "Override the X-Cache-Control header",
+				},
+			},
+		},
+	}
+
+	cacheKeySchema := &schema.Schema{ // TODO: Read / Write
+		Type:        schema.TypeMap,
+		Optional:    true,
+		Description: "Cache keys for variants",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"case_insensitive_cache": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
 				},
 			},
 		},
@@ -304,8 +412,12 @@ func resourceConfiguration() *schema.Resource {
 				Computed: true,
 			},
 			"origin":                    originSchema,
+			"cache_keys":                cacheKeySchema,
+			"delivery":                  deliverySchema,
 			"origin_pull_policy":        originPullPolicySchema,
 			"scope":                     scopeSchema,
+			"logs":                      logsSchema,
+			"cache_control":             cacheControlSchema,
 			"origin_request_edge_rule":  requestModifications,
 			"origin_response_edge_rule": requestModifications,
 			"client_request_edge_rule":  requestModifications,

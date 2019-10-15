@@ -11,40 +11,6 @@ import (
 	Helpers
 */
 
-func buildOriginPullPoliciesList(terraformPullPolicyList *[]interface{}) []*models.OriginPullPolicy {
-	policylist := []*models.OriginPullPolicy{}
-	// extract policies
-	for _, policy := range *terraformPullPolicyList {
-		devLog("POLICY: %v", policy)
-		thisMap := policy.(map[string]interface{})
-
-		newPolicy := &models.OriginPullPolicy{
-			Enabled:                        thisMap["enabled"].(bool),
-			ExpirePolicy:                   thisMap["expire_policy"].(string),
-			ExpireSeconds:                  thisMap["expire_seconds"].(int),
-			ForceBypassCache:               thisMap["force_bypass_cache"].(bool),
-			HonorMustRevalidate:            thisMap["honor_must_revalidate"].(bool),
-			HonorNoCache:                   thisMap["honor_no_cache"].(bool),
-			HonorNoStore:                   thisMap["honor_no_store"].(bool),
-			HonorPrivate:                   thisMap["honor_private"].(bool),
-			HonorSMaxAge:                   thisMap["honor_smax_age"].(bool),
-			HTTPHeaders:                    thisMap["http_headers"].(string),
-			MustRevalidateToNoCache:        thisMap["must_revalidate_to_no_cache"].(bool),
-			NoCacheBehavior:                thisMap["no_cache_behavior"].(string),
-			UpdateHTTPHeadersOn304Response: thisMap["update_http_headers_on_304_response"].(bool),
-			DefaultCacheBehavior:           thisMap["default_cache_behavior"].(string),
-			MaxAgeZeroToNoCache:            thisMap["max_age_zero_to_no_cache"].(bool),
-			ContentTypeFilter:              thisMap["content_type_filter"].(string),
-			HeaderFilter:                   thisMap["header_filter"].(string),
-			MethodFilter:                   thisMap["method_filter"].(string),
-			PathFilter:                     thisMap["path_filter"].(string),
-		}
-		policylist = append(policylist, newPolicy)
-	}
-
-	return policylist
-}
-
 // buildHostnameList converts the hostname state object to a list of strings
 func buildHostnameList(terraformHostnameList *[]interface{}) *[]string {
 	hostnames := make([]string, len(*terraformHostnameList))
@@ -72,39 +38,7 @@ func buildOriginMap(originMap map[string]interface{}) map[string]string {
 	return raw
 }
 
-func buildCreateScopeConfiguration(d *schema.ResourceData) *models.ConfigurationCreate {
-	// Pull scope resource from HCL and process the interface
-	scopeMapRaw := d.Get("scope").(map[string]interface{})
-
-	scopeMap := buildHostScopeList(scopeMapRaw)
-
-	// Weird bugfix because default isn't appearing in state sometimes
-	if scopeMap["platform"] == "" {
-		scopeMap["platform"] = "CDS"
-	}
-
-	// Create base model
-	newConfigurationScope := &models.ConfigurationCreate{
-		Name:     scopeMap["name"],
-		Platform: scopeMap["platform"],
-		Path:     scopeMap["path"],
-		//OriginPullHost: originHost,
-	}
-
-	// Append hostnames to model
-	hostnamesList := d.Get("hostnames").([]interface{})
-	hostnameList := *buildHostnameList(&hostnamesList)
-	if len(hostnameList) > 0 {
-		for _, hostname := range hostnameList {
-			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
-				Domain: hostname,
-			})
-		}
-	}
-
-	return newConfigurationScope
-}
-
+// ingestRemoteState picks apart the model from the remote and sets terraform state accordingly
 func ingestRemoteState(d *schema.ResourceData, config *models.Configuration) []error {
 	var errs []error
 
@@ -143,6 +77,18 @@ func ingestRemoteState(d *schema.ResourceData, config *models.Configuration) []e
 		errs = append(errs, err)
 	}
 
+	// Set log bools
+	err = d.Set("logs", config.GetLogState())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set browser cache control
+	err = d.Set("cache_control", config.BuildCacheControlInterface())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	// Set EdgeRules
 	err = d.Set("client_request_edge_rule", config.ClientRequestMap())
 	if err != nil {
@@ -164,16 +110,53 @@ func ingestRemoteState(d *schema.ResourceData, config *models.Configuration) []e
 	return errs
 }
 
+// buildNewConfigurationFromState builds a configuration only used to create new scopes with
 func buildNewConfigurationFromState(d *schema.ResourceData) (*models.Configuration, error) {
 
 	return nil, nil
 }
 
+// buildConfigurationFromState builds a configuration for updating a scope
 func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration, error) {
 
 	return nil, nil
 }
 
+// REPLACE ME
+func buildCreateScopeConfiguration(d *schema.ResourceData) *models.ConfigurationCreate {
+	// Pull scope resource from HCL and process the interface
+	scopeMapRaw := d.Get("scope").(map[string]interface{})
+
+	scopeMap := buildHostScopeList(scopeMapRaw)
+
+	// Weird bugfix because default isn't appearing in state sometimes
+	if scopeMap["platform"] == "" {
+		scopeMap["platform"] = "CDS"
+	}
+
+	// Create base model
+	newConfigurationScope := &models.ConfigurationCreate{
+		Name:     scopeMap["name"],
+		Platform: scopeMap["platform"],
+		Path:     scopeMap["path"],
+		//OriginPullHost: originHost,
+	}
+
+	// Append hostnames to model
+	hostnamesList := d.Get("hostnames").([]interface{})
+	hostnameList := *buildHostnameList(&hostnamesList)
+	if len(hostnameList) > 0 {
+		for _, hostname := range hostnameList {
+			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
+				Domain: hostname,
+			})
+		}
+	}
+
+	return newConfigurationScope
+}
+
+// REPLACE ME
 func buildScopeConfiguration(d *schema.ResourceData) *models.Configuration {
 	// Pull scope resource from HCL and process the interface
 	scopeMapRaw := d.Get("scope").(map[string]interface{})
@@ -252,7 +235,7 @@ func buildScopeConfiguration(d *schema.ResourceData) *models.Configuration {
 		Append origin pull policies to the model
 	*/
 	originPullPolicyListRaw := d.Get("origin_pull_policy").([]interface{})
-	originPullPolicyList := buildOriginPullPoliciesList(&originPullPolicyListRaw)
+	originPullPolicyList := models.BuildOriginPullPoliciesList(&originPullPolicyListRaw)
 	if len(originPullPolicyList) > 0 {
 		for _, policy := range originPullPolicyList {
 			newConfigurationScope.OriginPullPolicy = append(newConfigurationScope.OriginPullPolicy, policy)
