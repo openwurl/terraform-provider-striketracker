@@ -89,6 +89,24 @@ func ingestRemoteState(d *schema.ResourceData, config *models.Configuration) []e
 		errs = append(errs, err)
 	}
 
+	// Set delivery
+	err = d.Set("delivery", config.BuildDeliveryMap())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set cachekeys
+	err = d.Set("cache_keys", config.BuildCacheKeyMap())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set Access an Origin Pull logs
+	err = d.Set("logs", config.BuildLogMap())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	// Set EdgeRules
 	err = d.Set("client_request_edge_rule", config.ClientRequestMap())
 	if err != nil {
@@ -111,49 +129,58 @@ func ingestRemoteState(d *schema.ResourceData, config *models.Configuration) []e
 }
 
 // buildNewConfigurationFromState builds a configuration only used to create new scopes with
-func buildNewConfigurationFromState(d *schema.ResourceData) (*models.Configuration, error) {
+func buildNewConfigurationFromState(d *schema.ResourceData) (*models.ConfigurationCreate, error) {
+	// Pull scope resource from HCL and process the interface into base config
+	scopeMapRaw := d.Get("scope").(map[string]interface{})
+	newConfigScope, err := models.NewCreateConfigurationFromScope(scopeMapRaw)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	//  Append hostnames to model
+	hostnamesList := d.Get("hostnames").([]interface{})
+	newConfigScope.AppendHostnames(hostnamesList)
+
+	return newConfigScope, nil
 }
 
 // buildConfigurationFromState builds a configuration for updating a scope
 func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration, error) {
-
-	return nil, nil
-}
-
-// REPLACE ME
-func buildCreateScopeConfiguration(d *schema.ResourceData) *models.ConfigurationCreate {
-	// Pull scope resource from HCL and process the interface
+	// Pull scope resource from HCL and process the interface into base config
 	scopeMapRaw := d.Get("scope").(map[string]interface{})
-
-	scopeMap := buildHostScopeList(scopeMapRaw)
-
-	// Weird bugfix because default isn't appearing in state sometimes
-	if scopeMap["platform"] == "" {
-		scopeMap["platform"] = "CDS"
+	newConfigScope, err := models.ConfigurationFromScope(scopeMapRaw)
+	if err != nil {
+		return nil, err
 	}
 
-	// Create base model
-	newConfigurationScope := &models.ConfigurationCreate{
-		Name:     scopeMap["name"],
-		Platform: scopeMap["platform"],
-		Path:     scopeMap["path"],
-		//OriginPullHost: originHost,
-	}
+	// Attach Compression, HTTPMethods, StaticHeader from delivery map
+	deliveryMap := d.Get("delivery").(map[string]interface{})
+	newConfigScope.IngestDeliveryMap(deliveryMap)
 
-	// Append hostnames to model
+	// Attach CacheKeyModification from cache_keys map
+	cacheKeysMap := d.Get("cache_keys").(map[string]interface{})
+	newConfigScope.IngestCacheKeyMap(cacheKeysMap)
+
+	// Attach AccessLogs and OriginPullLogs from logs map
+	logsMap := d.Get("logs").(map[string]interface{})
+	newConfigScope.IngestLogMap(logsMap)
+
 	hostnamesList := d.Get("hostnames").([]interface{})
-	hostnameList := *buildHostnameList(&hostnamesList)
-	if len(hostnameList) > 0 {
-		for _, hostname := range hostnameList {
-			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
-				Domain: hostname,
-			})
-		}
-	}
+	newConfigScope.IngestHostnames(hostnamesList)
 
-	return newConfigurationScope
+	originMap := d.Get("origin").(map[string]interface{})
+	newConfigScope.IngestOriginMap(originMap)
+
+	/* To Attach
+	origin_pull_policy
+	cache_control
+	origin_request_edge_rule
+	origin_response_edge_rule
+	client_request_edge_rule
+	client_response_edge_rule
+	*/
+
+	return newConfigScope, nil
 }
 
 // REPLACE ME

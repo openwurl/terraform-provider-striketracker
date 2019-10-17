@@ -123,6 +123,7 @@ func resourceConfiguration() *schema.Resource {
 					Type:     schema.TypeString,
 					Default:  "spec",
 					Optional: true,
+
 					// TODO: Validation spec or legacy
 				},
 				"update_http_headers_on_304_response": {
@@ -169,9 +170,90 @@ func resourceConfiguration() *schema.Resource {
 		Description: "Fields concerning the configuration of the site delivery",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
-				"compression":   {},
-				"http_methods":  {},
-				"static_header": {},
+				"compression": &schema.Schema{
+					Type:        schema.TypeMap,
+					Optional:    true,
+					Description: "GZIP and GZIP level of compression with mime type",
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"enabled": {
+								Type:     schema.TypeBool,
+								Default:  true,
+								Optional: true,
+							},
+							"gzip": {
+								Type:        schema.TypeString,
+								Optional:    true,
+								Default:     "txt,js,htm,html,css",
+								Description: "File suffixes to compress if requested",
+							},
+							"level": {
+								Type:        schema.TypeInt,
+								Optional:    true,
+								Default:     1,
+								Description: "The level of compression used for gzip",
+							},
+							"mime": {
+								Type:        schema.TypeString,
+								Optional:    true,
+								Default:     "text/*",
+								Description: "Mimetypes for compression",
+							},
+						},
+					},
+				},
+				"http_methods": &schema.Schema{
+					Type:        schema.TypeMap,
+					Optional:    true,
+					Description: "Selectively enable additional http methods for the CDN",
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"enabled": {
+								Type:     schema.TypeBool,
+								Default:  true,
+								Optional: true,
+							},
+							"passthru": {
+								Type:        schema.TypeString,
+								Optional:    true,
+								Default:     "*",
+								Description: "Methods for no-store like passthrough behavior",
+							},
+						},
+					},
+				},
+				"static_header": &schema.Schema{
+					Type:        schema.TypeList,
+					Optional:    true,
+					Description: "Static headers to insert into the CDN request/response",
+					Elem: &schema.Resource{
+						Schema: map[string]*schema.Schema{
+							"enabled": {
+								Type:     schema.TypeBool,
+								Default:  false,
+								Optional: true,
+							},
+							"origin_pull": {
+								Type:        schema.TypeString,
+								Optional:    true,
+								Default:     "",
+								Description: "Insert static header into request made to origin",
+							},
+							"client_request": {
+								Type:        schema.TypeString,
+								Optional:    true,
+								Default:     "",
+								Description: "Insert static header into request made to CDN",
+							},
+							"http": {
+								Type:        schema.TypeString,
+								Optional:    true,
+								Default:     "",
+								Description: "Insert static header into response",
+							},
+						},
+					},
+				},
 			},
 		},
 	}
