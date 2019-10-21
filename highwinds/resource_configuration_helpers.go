@@ -1,8 +1,6 @@
 package highwinds
 
 import (
-	"strconv"
-
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/striketracker/models"
 )
@@ -165,134 +163,39 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 	logsMap := d.Get("logs").(map[string]interface{})
 	newConfigScope.IngestLogMap(logsMap)
 
+	// Attach hostnames
 	hostnamesList := d.Get("hostnames").([]interface{})
 	newConfigScope.IngestHostnames(hostnamesList)
 
+	// Attach origin details map
 	originMap := d.Get("origin").(map[string]interface{})
 	newConfigScope.IngestOriginMap(originMap)
 
-	/* To Attach
-	origin_pull_policy
-	cache_control
-	origin_request_edge_rule
-	origin_response_edge_rule
-	client_request_edge_rule
-	client_response_edge_rule
-	*/
-
-	return newConfigScope, nil
-}
-
-// REPLACE ME
-func buildScopeConfiguration(d *schema.ResourceData) *models.Configuration {
-	// Pull scope resource from HCL and process the interface
-	scopeMapRaw := d.Get("scope").(map[string]interface{})
-
-	scopeMap := buildHostScopeList(scopeMapRaw)
-
-	// Weird bugfix because default isn't appearing in state sometimes
-	if scopeMap["platform"] == "" {
-		scopeMap["platform"] = "CDS"
-	}
-
-	// Create base model
-	newConfigurationScope := &models.Configuration{
-		Scope: &models.Scope{
-			Name:     scopeMap["name"],
-			Platform: scopeMap["platform"],
-			Path:     scopeMap["path"],
-		},
-	}
-
-	/*
-		Attach origin pull protocol
-	*/
-	originRaw := d.Get("origin").(map[string]interface{})
-	originHost := buildOriginMap(originRaw)
-	if ra := originHost["redirect_action"]; ra != "" {
-		newConfigurationScope.OriginPull = &models.OriginPull{
-			RedirectAction: ra,
-		}
-	} else {
-		devLog("Origin pull redirect action not defined")
-	}
-
-	// Attach origin redirect action
-	if opp := originHost["origin_pull_protocol"]; opp != "" {
-		newConfigurationScope.OriginPullProtocol = &models.OriginPullProtocol{
-			Protocol: opp,
-		}
-	} else {
-		devLog("Origin pull protocol not defined")
-	}
-
-	/*
-		Attach primary/secondary origin host
-	*/
-	originModel := &models.OriginPullHost{}
-	if ohPrimary, err := strconv.Atoi(originHost["primary"]); err == nil {
-		originModel.Primary = ohPrimary
-	} else {
-		devLog("Failed to parse primary: %v", err)
-	}
-	if ohSecondary, err := strconv.Atoi(originHost["secondary"]); err == nil {
-		originModel.Secondary = ohSecondary
-	} else {
-		devLog("Failed to parse secondary: %v", err)
-	}
-	if ohPath := originHost["path"]; ohPath != "" {
-		originModel.Path = ohPath
-	}
-	newConfigurationScope.OriginPullHost = originModel
-
-	/*
-		Append hostnames to model
-	*/
-	hostnamesList := d.Get("hostnames").([]interface{})
-	hostnameList := *buildHostnameList(&hostnamesList)
-	if len(hostnameList) > 0 {
-		for _, hostname := range hostnameList {
-			newConfigurationScope.Hostname = append(newConfigurationScope.Hostname, &models.ConfigurationHostname{
-				Domain: hostname,
-			})
-		}
-	}
-
-	/*
-		Append origin pull policies to the model
-	*/
+	// Attach origin pull policy
 	originPullPolicyListRaw := d.Get("origin_pull_policy").([]interface{})
-	originPullPolicyList := models.BuildOriginPullPoliciesList(&originPullPolicyListRaw)
-	if len(originPullPolicyList) > 0 {
-		for _, policy := range originPullPolicyList {
-			newConfigurationScope.OriginPullPolicy = append(newConfigurationScope.OriginPullPolicy, policy)
-		}
-	}
+	newConfigScope.IngestOriginPullPolicies(originPullPolicyListRaw)
 
-	/*
-		Add Edge rules
-	*/
+	// attach cache control
+	cacheControlListRaw := d.Get("cache_control").([]interface{})
+	newConfigScope.IngestCacheControl(cacheControlListRaw)
+
+	// Attach edge rule policies
 	cReqMod := d.Get("client_request_edge_rule").([]interface{})
 	if len(cReqMod) > 0 {
-		cReqs := models.BuildClientRequestModification(cReqMod)
-		newConfigurationScope.ClientRequestModification = cReqs
+		newConfigScope.IngestClientRequestModification(cReqMod)
 	}
-
 	cRespMod := d.Get("client_response_edge_rule").([]interface{})
 	if len(cRespMod) > 0 {
-		cReqs := models.BuildClientResponseModification(cRespMod)
-		newConfigurationScope.ClientResponseModification = cReqs
+		newConfigScope.IngestClientResponseModification(cRespMod)
 	}
 	oReqMod := d.Get("origin_request_edge_rule").([]interface{})
 	if len(oReqMod) > 0 {
-		cReqs := models.BuildOriginRequestModification(oReqMod)
-		newConfigurationScope.OriginRequestModification = cReqs
+		newConfigScope.IngestOriginRequestModification(oReqMod)
 	}
 	oRespMod := d.Get("origin_response_edge_rule").([]interface{})
 	if len(oRespMod) > 0 {
-		cReqs := models.BuildOriginResponseModification(oRespMod)
-		newConfigurationScope.OriginResponseModification = cReqs
+		newConfigScope.IngestOriginResponseModification(oRespMod)
 	}
 
-	return newConfigurationScope
+	return newConfigScope, nil
 }

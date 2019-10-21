@@ -24,7 +24,10 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 	defer cancel()
 
 	// Build our model to send
-	newConfigurationScope := buildCreateScopeConfiguration(d)
+	newConfigurationScope, err := buildNewConfigurationFromState(d)
+	if err != nil {
+		return err
+	}
 
 	// Send model
 	returnedModel, err := conf.Create(ctx, accountHash, hostHash, newConfigurationScope)
@@ -60,7 +63,10 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 	devLog("Preparing to update configuration %s/%s/%s", accountHash, hostHash, scopeID)
 
 	// Build our model to send
-	newConfigurationScope := buildScopeConfiguration(d)
+	newConfigurationScope, err := buildConfigurationFromState(d)
+	if err != nil {
+		return fmt.Errorf("Error building config from state: %v", err.Error())
+	}
 
 	devLog("Updating configuration %s/%s/%d", accountHash, hostHash, scopeID)
 	// Ship object
@@ -107,6 +113,7 @@ func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
 		return ErrScopeIsNil(accountHash, hostHash, scopeID)
 	}
 
+	// Ingest the remote state and update our local state
 	errs := ErrSetState(ingestRemoteState(d, configModel))
 	if errs != nil {
 		return errs
