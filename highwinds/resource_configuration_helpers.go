@@ -1,6 +1,8 @@
 package highwinds
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/striketracker/models"
 )
@@ -87,11 +89,12 @@ func ingestRemoteState(d *schema.ResourceData, config *models.Configuration) []e
 		errs = append(errs, err)
 	}
 
+	// TODO: Redo delivery
 	// Set delivery
-	err = d.Set("delivery", config.BuildDeliveryMap())
-	if err != nil {
-		errs = append(errs, err)
-	}
+	//err = d.Set("delivery", config.BuildDeliveryMap())
+	//if err != nil {
+	//	errs = append(errs, err)
+	//}
 
 	// Set cachekeys
 	err = d.Set("cache_keys", config.BuildCacheKeyMap())
@@ -152,8 +155,9 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 	}
 
 	// Attach Compression, HTTPMethods, StaticHeader from delivery map
-	deliveryMap := d.Get("delivery").(map[string]interface{})
+	deliveryMap := d.Get("delivery").([]interface{})
 	newConfigScope.IngestDeliveryMap(deliveryMap)
+	return nil, fmt.Errorf("failing on purpose")
 
 	// Attach CacheKeyModification from cache_keys map
 	cacheKeysMap := d.Get("cache_keys").(map[string]interface{})

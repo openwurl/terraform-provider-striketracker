@@ -11,7 +11,7 @@ func Provider() *schema.Provider {
 		Schema: map[string]*schema.Schema{
 			"authorization_header_key": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				DefaultFunc: schema.EnvDefaultFunc("AUTHORIZATIONHEADERKEY", nil),
 			},
 			"application_id": {

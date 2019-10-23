@@ -60,7 +60,7 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	devLog("Preparing to update configuration %s/%s/%s", accountHash, hostHash, scopeID)
+	devLog("Preparing to update configuration %s/%s/%d", accountHash, hostHash, scopeID)
 
 	// Build our model to send
 	newConfigurationScope, err := buildConfigurationFromState(d)
