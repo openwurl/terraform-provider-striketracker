@@ -2,7 +2,9 @@ package highwinds
 
 import (
 	"fmt"
+	"log"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/striketracker/models"
 )
@@ -157,7 +159,6 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 	// Attach Compression, HTTPMethods, StaticHeader from delivery map
 	deliveryMap := d.Get("delivery").([]interface{})
 	newConfigScope.IngestDeliveryMap(deliveryMap)
-	return nil, fmt.Errorf("failing on purpose")
 
 	// Attach CacheKeyModification from cache_keys map
 	cacheKeysMap := d.Get("cache_keys").(map[string]interface{})
@@ -200,6 +201,7 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 	if len(oRespMod) > 0 {
 		newConfigScope.IngestOriginResponseModification(oRespMod)
 	}
-
+	log.Println(spew.Sprint(newConfigScope))
+	return nil, fmt.Errorf("failing on purpose")
 	return newConfigScope, nil
 }

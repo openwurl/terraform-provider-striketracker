@@ -11,9 +11,8 @@ import (
 
 /*
 	TODO:
-		* The rest  of the configuration payload
-		* Read should set all of the known state
-		* Finish reverse engineering API
+		* Finish reverse engineering API for unknown fields
+		* Investigate defaults for nested data
 */
 
 func resourceConfiguration() *schema.Resource {
