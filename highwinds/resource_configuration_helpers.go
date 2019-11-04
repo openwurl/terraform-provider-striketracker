@@ -1,7 +1,6 @@
 package highwinds
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/davecgh/go-spew/spew"
@@ -91,12 +90,11 @@ func ingestRemoteState(d *schema.ResourceData, config *models.Configuration) []e
 		errs = append(errs, err)
 	}
 
-	// TODO: Redo delivery
-	// Set delivery
-	//err = d.Set("delivery", config.BuildDeliveryMap())
-	//if err != nil {
-	//	errs = append(errs, err)
-	//}
+	// Set delivery schema.Set
+	err = d.Set("delivery", config.BuildDeliveryMap())
+	if err != nil {
+		errs = append(errs, err)
+	}
 
 	// Set cachekeys
 	err = d.Set("cache_keys", config.BuildCacheKeyMap())
@@ -202,6 +200,6 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 		newConfigScope.IngestOriginResponseModification(oRespMod)
 	}
 	log.Println(spew.Sprint(newConfigScope))
-	return nil, fmt.Errorf("failing on purpose")
+	//return nil, fmt.Errorf("failing on purpose")
 	return newConfigScope, nil
 }
