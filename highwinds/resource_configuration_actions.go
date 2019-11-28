@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/openwurl/wurlwind/pkg/debug"
 	"github.com/openwurl/wurlwind/striketracker"
 	"github.com/openwurl/wurlwind/striketracker/services/configuration"
 )
@@ -46,7 +47,7 @@ func resourceConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 /*
-	Update
+	Create
 */
 func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 	c := m.(*striketracker.Client)
@@ -60,7 +61,7 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	devLog("Preparing to update configuration %s/%s/%d", accountHash, hostHash, scopeID)
+	debug.Log("Update", "Preparing to update configuration %s/%s/%d", accountHash, hostHash, scopeID)
 
 	// Build our model to send
 	newConfigurationScope, err := buildConfigurationFromState(d)
@@ -68,7 +69,7 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Error building config from state: %v", err.Error())
 	}
 
-	devLog("Updating configuration %s/%s/%d", accountHash, hostHash, scopeID)
+	debug.Log("Update", "Updating configuration %s/%s/%d", accountHash, hostHash, scopeID)
 	// Ship object
 	returnedModel, err := conf.Update(ctx, accountHash, hostHash, scopeID, newConfigurationScope)
 	if err != nil {
@@ -78,11 +79,13 @@ func resourceConfigurationUpdate(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Something went wrong updating the scope %s, returned model is nil", d.Id())
 	}
 
+	d.Partial(false)
+
 	return resourceConfigurationRead(d, m)
 }
 
 /*
-	Read
+	Create
 */
 func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
 	c := m.(*striketracker.Client)
@@ -96,7 +99,7 @@ func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	devLog("Reading configuration %s/%s/%d", accountHash, hostHash, scopeID)
+	debug.Log("Read", "Reading configuration %s/%s/%d", accountHash, hostHash, scopeID)
 
 	// Fetch resource
 	configModel, err := conf.Get(ctx, accountHash, hostHash, scopeID)
@@ -107,19 +110,19 @@ func resourceConfigurationRead(d *schema.ResourceData, m interface{}) error {
 		return fmt.Errorf("Resource %s does not exist", d.Id())
 	}
 
-	devLog("Setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
+	debug.Log("Read", "Setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
 
 	if configModel.Platform == "" || configModel.ID == 0 || configModel.Path == "" {
 		return ErrScopeIsNil(accountHash, hostHash, scopeID)
 	}
 
 	// Ingest the remote state and update our local state
-	errs := ErrSetState(ingestRemoteState(d, configModel))
+	errs := ErrSetState(ingestState(d, configModel))
 	if errs != nil {
 		return errs
 	}
 
-	devLog("Done setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
+	debug.Log("Read", "Done setting configuration state %s/%s/%d", accountHash, hostHash, scopeID)
 
 	return nil
 }
@@ -150,9 +153,31 @@ func resourceConfigurationDelete(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
+// TODO: exists
 /*
 	Exists
 */
 func resourceConfigurationExists(d *schema.ResourceData, m interface{}) (bool, error) {
-	return false, nil
+	c := m.(*striketracker.Client)
+	conf := configuration.New(c)
+	accountHash := d.Get("account_hash").(string)
+	hostHash := d.Get("host_hash").(string)
+	scopeID, err := strconv.Atoi(d.Id())
+	if err != nil {
+		return false, err
+	}
+	ctx, cancel := getContext()
+	defer cancel()
+
+	debug.Log("Exists", "Reading configuration %s/%s/%d", accountHash, hostHash, scopeID)
+
+	// Fetch resource
+	configModel, err := conf.Get(ctx, accountHash, hostHash, scopeID)
+	if err != nil {
+		return false, err
+	}
+	if configModel == nil {
+		return false, fmt.Errorf("Resource %s does not exist", d.Id())
+	}
+	return true, nil
 }

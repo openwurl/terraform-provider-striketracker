@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/openwurl/wurlwind/pkg/debug"
 	"github.com/openwurl/wurlwind/striketracker"
 	"github.com/openwurl/wurlwind/striketracker/services/hosts"
 )
@@ -19,18 +20,12 @@ func defaultResourceConfiguration() *schema.Resource {
 
 func resourceDefaultConfigurationCreate(d *schema.ResourceData, m interface{}) error {
 	// Fetch defined host
-	d.Partial(true)
-
 	c := m.(*striketracker.Client)
 	h := hosts.New(c)
 	accountHash := d.Get("account_hash").(string)
 	hostHash := d.Get("host_hash").(string)
 
-	if d.Get("scope.path") != "/" {
-		return fmt.Errorf("Default scope path can only be [ / ], got: %s", d.Get("path"))
-	}
-
-	devLog("Fetching %s/%s", accountHash, hostHash)
+	debug.Log("Fetch", "Fetching %s/%s", accountHash, hostHash)
 
 	ctx, cancel := getContext()
 	defer cancel()
@@ -52,12 +47,10 @@ func resourceDefaultConfigurationCreate(d *schema.ResourceData, m interface{}) e
 	}
 
 	// Set ID from root scope
-	d.SetId(fmt.Sprintf("%d", rootScope.ID))
+	d.SetId(rootScope.GetIDString())
 
 	// Return an update on the resource
-
-	d.Partial(false)
-	devLog("Updating instead of creating %s/%s", accountHash, hostHash)
+	debug.Log("Update", "Updating instead of creating %s/%s", accountHash, hostHash)
 
 	return resourceConfigurationUpdate(d, m)
 }

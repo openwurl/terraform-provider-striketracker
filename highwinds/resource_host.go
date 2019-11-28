@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/openwurl/wurlwind/pkg/debug"
 	"github.com/openwurl/wurlwind/striketracker"
 	"github.com/openwurl/wurlwind/striketracker/models"
 	"github.com/openwurl/wurlwind/striketracker/services/hosts"
@@ -37,7 +38,7 @@ func resourceHost() *schema.Resource {
 	}
 
 	servicesList := &schema.Schema{
-		Description: "The enabled services for the host",
+		Description: "The enabled services for the host. 41 for global and 40 for normal",
 		Type:        schema.TypeList,
 		Elem: &schema.Schema{
 			Type: schema.TypeInt,
@@ -123,7 +124,7 @@ func resourceHostCreate(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	devLog("Creating host %s", host.Name)
+	debug.Log("Create", "Creating host %s", host.Name)
 
 	returnedModel, err := h.Create(ctx, accountHash, host)
 	if returnedModel != nil {
@@ -214,7 +215,7 @@ func resourceHostRead(d *schema.ResourceData, m interface{}) error {
 	ctx, cancel := getContext()
 	defer cancel()
 
-	devLog("Reading host %s", d.Id())
+	debug.Log("Read", "Reading host %s", d.Id())
 
 	hostResource, err := h.Get(ctx, accountHash, d.Id())
 	if err != nil {

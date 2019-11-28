@@ -114,6 +114,7 @@ func resourceOrigin() *schema.Resource {
 				Description: "The path at the origin to request",
 				Type:        schema.TypeString,
 				Optional:    true,
+				Default:     "/",
 			},
 			"request_timeout_seconds": &schema.Schema{
 				Description: "Timeout for request to origin",
