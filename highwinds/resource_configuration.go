@@ -63,6 +63,32 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	originPullCacheExtension := &schema.Schema{
+		Description: "The stale cache extension settings for this scope",
+		Type:        schema.TypeSet,
+		MaxItems:    1,
+		Optional:    true,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:        schema.TypeBool,
+					Description: "Whether or not stale cache extension is enabled",
+					Optional:    true,
+				},
+				"expired_cache_extension": {
+					Type:        schema.TypeInt,
+					Description: "The TTL extension for expired cache",
+					Optional:    true,
+				},
+				"origin_unreachable_cache_extension": {
+					Type:        schema.TypeInt,
+					Description: "The TTL extension for origin fetch failures",
+					Optional:    true,
+				},
+			},
+		},
+	}
+
 	return &schema.Resource{
 		Create: resourceConfigurationCreate,
 		Read:   resourceConfigurationRead,
@@ -118,8 +144,9 @@ func resourceConfiguration() *schema.Resource {
 				},
 				Optional: true,
 			},
-			"scope":            scopeSchema,
-			"origin_pull_host": originHostSchema,
+			"scope":                 scopeSchema,
+			"origin_pull_host":      originHostSchema,
+			"stale_cache_extension": originPullCacheExtension,
 		},
 	}
 }

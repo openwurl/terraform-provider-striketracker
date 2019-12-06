@@ -44,6 +44,13 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 		d.SetPartial("origin_pull_host")
 	}
 
+	// Append stale cache extension
+	if d.HasChange("stale_cache_extension") {
+		sce := d.Get("stale_cache_extension").(*schema.Set).List()
+		debug.Log("STALE CACHE", "%s", spew.Sprintf("%v", sce))
+		config.OriginPullCacheExtensionFromState(sce[0].(map[string]interface{}))
+	}
+
 	debug.Log("STATE", "%v", spew.Sprintf("%v", config.Scope))
 
 	return config, config.Validate()
@@ -67,6 +74,12 @@ func ingestState(d *schema.ResourceData, config *models.Configuration) []error {
 
 	// Set origin_pull_host
 	err = d.Set("origin_pull_host", config.OriginHostFromModel())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// set stale_cache_extension
+	err = d.Set("stale_cache_extension", config.OriginPullCacheExtensionFromModel())
 	if err != nil {
 		errs = append(errs, err)
 	}
