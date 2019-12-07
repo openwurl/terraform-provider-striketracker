@@ -22,6 +22,7 @@ func buildNewConfigurationFromState(d *schema.ResourceData) (*models.NewHostConf
 // buildConfigurationFromState builds a configuration model from terraform state
 func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration, error) {
 	config := models.NewConfiguration()
+	var err error
 
 	// Pull state and process
 	if d.HasChange("scope") {
@@ -54,7 +55,10 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 	// Append Origin Pull Policy (cache_policy)
 	if d.HasChange("cache_policy") {
 		cp := d.Get("cache_policy").(*schema.Set).List()
-		config.OriginPullPolicyFromState(cp)
+		err = config.OriginPullPolicyFromState(cp)
+		if err != nil {
+			return nil, err
+		}
 		d.SetPartial("cache_policy")
 	}
 

@@ -105,7 +105,7 @@ func resourceConfiguration() *schema.Resource {
 			Schema: map[string]*schema.Schema{
 				"weight": {
 					Type:        schema.TypeInt,
-					Description: "Indicates the position in the stack of this CDN cache rule",
+					Description: "Indicates the position in the ordered stack of this CDN cache rule",
 					Required:    true,
 				},
 				"enabled": {
