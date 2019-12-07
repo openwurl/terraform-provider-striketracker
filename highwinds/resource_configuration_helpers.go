@@ -47,8 +47,8 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 	// Append stale cache extension
 	if d.HasChange("stale_cache_extension") {
 		sce := d.Get("stale_cache_extension").(*schema.Set).List()
-		debug.Log("STALE CACHE", "%s", spew.Sprintf("%v", sce))
 		config.OriginPullCacheExtensionFromState(sce[0].(map[string]interface{}))
+		d.SetPartial("stale_cache_extension")
 	}
 
 	debug.Log("STATE", "%v", spew.Sprintf("%v", config.Scope))

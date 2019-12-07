@@ -1,14 +1,18 @@
 package highwinds
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/openwurl/wurlwind/pkg/debug"
+	"github.com/openwurl/wurlwind/pkg/utilities"
+	"github.com/openwurl/wurlwind/striketracker/models"
 )
 
 // resourceConfiguration manages configuration scopes (except for default/root scope)
 func resourceConfiguration() *schema.Resource {
+	// Scope
 	scopeSchema := &schema.Schema{
 		Type:        schema.TypeMap,
 		Required:    true,
@@ -36,6 +40,7 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	// Origin Pull host
 	originHostSchema := &schema.Schema{
 		Description: "The origins this scope will use to populate its cache",
 		Type:        schema.TypeSet,
@@ -63,7 +68,8 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
-	originPullCacheExtension := &schema.Schema{
+	// Stale Cache Extension
+	originPullCacheExtensionSchema := &schema.Schema{
 		Description: "The stale cache extension settings for this scope",
 		Type:        schema.TypeSet,
 		MaxItems:    1,
@@ -84,6 +90,76 @@ func resourceConfiguration() *schema.Resource {
 					Type:        schema.TypeInt,
 					Description: "The TTL extension for origin fetch failures",
 					Optional:    true,
+				},
+			},
+		},
+	}
+
+	// Cache Policy
+	originPullPolicySchema := &schema.Schema{
+		Description: "Cache control policies to apply to an origin",
+		Type:        schema.TypeSet,
+		MinItems:    1,
+		Required:    true,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"weight": {
+					Type:        schema.TypeInt,
+					Description: "Indicates the position in the stack of this CDN cache rule",
+					Required:    true,
+				},
+				"enabled": {
+					Type:        schema.TypeBool,
+					Description: "Whether or not this cache rule is enabled",
+					Optional:    true,
+					Default:     true,
+				},
+				"expire_policy": {
+					Type:     schema.TypeString,
+					Optional: true,
+					Default:  "CACHE_CONTROL",
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						if !utilities.SliceContainsString(v, models.ValidExpirePolicies) {
+							errs = append(errs, fmt.Errorf("%q must be one of (%v), got %s", key, models.ValidExpirePolicies, val))
+						}
+						return warns, errs
+					},
+				},
+				"expire_seconds": {
+					Type:     schema.TypeInt,
+					Optional: true,
+					Default:  31536000,
+				},
+				"force_bypass_cache": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"honor_must_revalidate": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"honor_no_cache": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"honor_no_store": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"honor_private": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"honor_smax_age": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
 				},
 			},
 		},
@@ -146,7 +222,8 @@ func resourceConfiguration() *schema.Resource {
 			},
 			"scope":                 scopeSchema,
 			"origin_pull_host":      originHostSchema,
-			"stale_cache_extension": originPullCacheExtension,
+			"stale_cache_extension": originPullCacheExtensionSchema,
+			"cache_policy":          originPullPolicySchema,
 		},
 	}
 }
