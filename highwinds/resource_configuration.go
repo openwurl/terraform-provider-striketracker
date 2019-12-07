@@ -161,6 +161,76 @@ func resourceConfiguration() *schema.Resource {
 					Default:  false,
 					Optional: true,
 				},
+				"http_headers": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"must_revalidate_to_no_cache": {
+					Type:     schema.TypeBool,
+					Default:  false,
+					Optional: true,
+				},
+				"no_cache_behavior": {
+					Type:     schema.TypeString,
+					Default:  "spec",
+					Optional: true,
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						if !utilities.SliceContainsString(v, models.ValidNoCacheBehaviors) {
+							errs = append(errs, fmt.Errorf("%q must be one of (%v), got %s", key, models.ValidNoCacheBehaviors, val))
+						}
+						return warns, errs
+					},
+				},
+				"update_http_headers_on_304_response": {
+					Type:     schema.TypeBool,
+					Optional: true,
+				},
+				"default_cache_behavior": {
+					Type:     schema.TypeString,
+					Default:  "ttl",
+					Optional: true,
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						if !utilities.SliceContainsString(v, models.ValidCacheBehaviors) {
+							errs = append(errs, fmt.Errorf("%q must be one of (%v), got %s", key, models.ValidCacheBehaviors, val))
+						}
+						return warns, errs
+					},
+				},
+				"max_age_zero_to_no_cache": {
+					Type:     schema.TypeBool,
+					Optional: true,
+				},
+				"bypass_cache_identifier": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"content_type_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"header_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"method_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"path_filter": {
+					Type:     schema.TypeString,
+					Default:  "*",
+					Optional: true,
+				},
+				"status_code_match": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
 			},
 		},
 	}
