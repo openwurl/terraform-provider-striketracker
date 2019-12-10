@@ -235,6 +235,43 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	// Request Modifications
+	// TODO: This will need expanded, there are more fields
+	requestModifications := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Edge rules targeting the origin response/request",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"add_headers": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"flow_control": {
+					Type:     schema.TypeString,
+					Optional: true,
+					Default:  "next",
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(string)
+						valid := []string{"next", "break"}
+						if !utilities.SliceContainsString(strings.ToLower(v), valid) {
+							errs = append(errs, fmt.Errorf("%q must be one of (next, break), got %s", key, val))
+						}
+						return warns, errs
+					},
+					StateFunc: func(val interface{}) string {
+						return strings.ToLower(val.(string))
+					},
+				},
+			},
+		},
+	}
+
 	return &schema.Resource{
 		Create: resourceConfigurationCreate,
 		Read:   resourceConfigurationRead,
@@ -290,10 +327,14 @@ func resourceConfiguration() *schema.Resource {
 				},
 				Optional: true,
 			},
-			"scope":                 scopeSchema,
-			"origin_pull_host":      originHostSchema,
-			"stale_cache_extension": originPullCacheExtensionSchema,
-			"cache_policy":          originPullPolicySchema,
+			"scope":                     scopeSchema,
+			"origin_pull_host":          originHostSchema,
+			"stale_cache_extension":     originPullCacheExtensionSchema,
+			"cache_policy":              originPullPolicySchema,
+			"origin_request_edge_rule":  requestModifications,
+			"origin_response_edge_rule": requestModifications,
+			"client_request_edge_rule":  requestModifications,
+			"client_response_edge_rule": requestModifications,
 		},
 	}
 }

@@ -62,6 +62,46 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 		d.SetPartial("cache_policy")
 	}
 
+	// Append Origin Request Edge Rule
+	if d.HasChange("origin_request_edge_rule") {
+		orer := d.Get("origin_request_edge_rule").(*schema.Set).List()
+		err = config.OriginRequestModificationFromState(orer)
+		if err != nil {
+			return nil, err
+		}
+		d.SetPartial("origin_request_edge_rule")
+	}
+
+	// Append Origin Response Edge Rule
+	if d.HasChange("origin_response_edge_rule") {
+		orer := d.Get("origin_response_edge_rule").(*schema.Set).List()
+		err = config.OriginResponseModificationFromState(orer)
+		if err != nil {
+			return nil, err
+		}
+		d.SetPartial("origin_response_edge_rule")
+	}
+
+	// Append Client Request Edge Rule
+	if d.HasChange("client_request_edge_rule") {
+		orer := d.Get("client_request_edge_rule").(*schema.Set).List()
+		err = config.ClientRequestModificationFromState(orer)
+		if err != nil {
+			return nil, err
+		}
+		d.SetPartial("client_request_edge_rule")
+	}
+
+	// Append Client Response Edge Rule
+	if d.HasChange("client_response_edge_rule") {
+		orer := d.Get("client_response_edge_rule").(*schema.Set).List()
+		err = config.ClientResponseModificationFromState(orer)
+		if err != nil {
+			return nil, err
+		}
+		d.SetPartial("client_response_edge_rule")
+	}
+
 	debug.Log("STATE", "%v", spew.Sprintf("%v", config.Scope))
 
 	return config, config.Validate()
@@ -97,6 +137,30 @@ func ingestState(d *schema.ResourceData, config *models.Configuration) []error {
 
 	// Set cache_policy (origin pull policy)
 	err = d.Set("cache_policy", config.OriginPullPolicyFromModel())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set origin_request_edge_rule
+	err = d.Set("origin_request_edge_rule", config.OriginRequestModificationFromModel())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set origin_response_edge_rule
+	err = d.Set("origin_response_edge_rule", config.OriginResponseModificationFromModel())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set client_request_edge_rule
+	err = d.Set("client_request_edge_rule", config.ClientRequestModificationFromModel())
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set client_response_edge_rule
+	err = d.Set("client_response_edge_rule", config.ClientResponseModificationFromModel())
 	if err != nil {
 		errs = append(errs, err)
 	}
