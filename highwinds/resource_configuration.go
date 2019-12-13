@@ -237,7 +237,7 @@ func resourceConfiguration() *schema.Resource {
 
 	// Request Modifications
 	// TODO: This will need expanded, there are more fields
-	requestModifications := &schema.Schema{
+	requestModificationsSchema := &schema.Schema{
 		Type:        schema.TypeSet,
 		Optional:    true,
 		Description: "Edge rules targeting the origin response/request",
@@ -268,6 +268,56 @@ func resourceConfiguration() *schema.Resource {
 						return strings.ToLower(val.(string))
 					},
 				},
+			},
+		},
+	}
+
+	compressionSchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Fields for compression on delivery",
+		MaxItems:    1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"gzip": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Default:     "txt,js,htm,html,css",
+					Description: "File suffixes to compress if requested",
+				},
+				"level": {
+					Type:        schema.TypeInt,
+					Optional:    true,
+					Default:     1,
+					Description: "The level of compression used for gzip",
+				},
+				"mime": &schema.Schema{
+					Type:        schema.TypeList,
+					Optional:    true,
+					Description: "Mime types to be used with gzip compression",
+					Default:     []string{"text/*"},
+					Elem: &schema.Schema{
+						Type: schema.TypeString,
+					},
+				},
+			},
+		},
+	}
+
+	// Delivery
+	deliverySchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Delivery related features",
+		MaxItems:    1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"compresssion": compressionSchema,
 			},
 		},
 	}
@@ -331,10 +381,11 @@ func resourceConfiguration() *schema.Resource {
 			"origin_pull_host":          originHostSchema,
 			"stale_cache_extension":     originPullCacheExtensionSchema,
 			"cache_policy":              originPullPolicySchema,
-			"origin_request_edge_rule":  requestModifications,
-			"origin_response_edge_rule": requestModifications,
-			"client_request_edge_rule":  requestModifications,
-			"client_response_edge_rule": requestModifications,
+			"origin_request_edge_rule":  requestModificationsSchema,
+			"origin_response_edge_rule": requestModificationsSchema,
+			"client_request_edge_rule":  requestModificationsSchema,
+			"client_response_edge_rule": requestModificationsSchema,
+			"delivery":                  deliverySchema,
 		},
 	}
 }
