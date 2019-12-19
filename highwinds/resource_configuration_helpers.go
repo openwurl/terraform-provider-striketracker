@@ -21,86 +21,61 @@ func buildNewConfigurationFromState(d *schema.ResourceData) (*models.NewHostConf
 
 // buildConfigurationFromState builds a configuration model from terraform state
 func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration, error) {
-	config := models.NewConfiguration()
 	var err error
 
-	// Pull state and process
-	if d.HasChange("scope") {
-		scopeMapRaw := d.Get("scope").(map[string]interface{})
-		config.ScopeFromState(scopeMapRaw)
-		d.SetPartial("scope")
+	config := &models.Configuration{
+		Scope:                    expandScopeModel(d.Get("scope").(map[string]interface{})),
+		Hostname:                 models.ScopeHostnameFromInterfaceSlice(d.Get("hostnames").([]interface{})),
+		OriginPullHost:           expandOriginPullHost(d.Get("origin_pull_host").(*schema.Set).List()[0].(map[string]interface{})),
+		OriginPullCacheExtension: expandOriginPullCacheExtension(d.Get("stale_cache_extension").(*schema.Set).List()[0].(map[string]interface{})),
 	}
 
-	//  Append hostnames to model
-	if d.HasChange("hostnames") {
-		hostnamesList := d.Get("hostnames").([]interface{})
-		config.HostnamesFromState(hostnamesList)
-		d.SetPartial("hostnames")
-	}
-
-	// Append OriginHost to model
-	if d.HasChange("origin_pull_host") {
-		originHost := d.Get("origin_pull_host").(*schema.Set).List()
-		config.OriginHostFromState(originHost[0].(map[string]interface{}))
-		d.SetPartial("origin_pull_host")
-	}
-
-	// Append stale cache extension (origin pull cache extension)
-	if d.HasChange("stale_cache_extension") {
-		sce := d.Get("stale_cache_extension").(*schema.Set).List()
-		config.OriginPullCacheExtensionFromState(sce[0].(map[string]interface{}))
-		d.SetPartial("stale_cache_extension")
-	}
-
-	// Append Origin Pull Policy (cache_policy)
-	if d.HasChange("cache_policy") {
-		cp := d.Get("cache_policy").(*schema.Set).List()
-		err = config.OriginPullPolicyFromState(cp)
+	if v, ok := d.GetOk("cache_policy"); ok {
+		err = config.OriginPullPolicyFromState(v.(*schema.Set).List())
 		if err != nil {
 			return nil, err
 		}
-		d.SetPartial("cache_policy")
 	}
 
-	// Append Origin Request Edge Rule
-	if d.HasChange("origin_request_edge_rule") {
-		orer := d.Get("origin_request_edge_rule").(*schema.Set).List()
-		err = config.OriginRequestModificationFromState(orer)
+	if v, ok := d.GetOk("origin_request_edge_rule"); ok {
+		err = config.OriginRequestModificationFromState(v.(*schema.Set).List())
 		if err != nil {
 			return nil, err
 		}
-		d.SetPartial("origin_request_edge_rule")
 	}
-
-	// Append Origin Response Edge Rule
-	if d.HasChange("origin_response_edge_rule") {
-		orer := d.Get("origin_response_edge_rule").(*schema.Set).List()
-		err = config.OriginResponseModificationFromState(orer)
+	if v, ok := d.GetOk("origin_response_edge_rule"); ok {
+		err = config.OriginResponseModificationFromState(v.(*schema.Set).List())
 		if err != nil {
 			return nil, err
 		}
-		d.SetPartial("origin_response_edge_rule")
 	}
-
-	// Append Client Request Edge Rule
-	if d.HasChange("client_request_edge_rule") {
-		orer := d.Get("client_request_edge_rule").(*schema.Set).List()
-		err = config.ClientRequestModificationFromState(orer)
+	if v, ok := d.GetOk("client_request_edge_rule"); ok {
+		err = config.ClientRequestModificationFromState(v.(*schema.Set).List())
 		if err != nil {
 			return nil, err
 		}
-		d.SetPartial("client_request_edge_rule")
 	}
-
-	// Append Client Response Edge Rule
-	if d.HasChange("client_response_edge_rule") {
-		orer := d.Get("client_response_edge_rule").(*schema.Set).List()
-		err = config.ClientResponseModificationFromState(orer)
+	if v, ok := d.GetOk("client_response_edge_rule"); ok {
+		err = config.ClientResponseModificationFromState(v.(*schema.Set).List())
 		if err != nil {
 			return nil, err
 		}
-		d.SetPartial("client_response_edge_rule")
 	}
+
+	/*
+		Delivery
+	*/
+
+	/*
+		// Append Compression
+		if d.HasChange("delivery") {
+			test1 := d.Get("delivery").(*schema.Set).List()
+			dcer := d.Get("delivery.compression").(map[string]interface{})
+			debug.Log("THING!!!!", "%v", spew.Sprintf("%v", test1))
+			debug.Log("THING!!!!", "%v", spew.Sprintf("%v", dcer))
+
+		}
+	*/
 
 	debug.Log("STATE", "%v", spew.Sprintf("%v", config.Scope))
 

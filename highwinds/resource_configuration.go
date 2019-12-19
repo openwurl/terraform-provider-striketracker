@@ -280,30 +280,62 @@ func resourceConfiguration() *schema.Resource {
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
 				"enabled": {
-					Type:     schema.TypeBool,
-					Default:  true,
+					Type: schema.TypeBool,
+					//Default:  true,
 					Optional: true,
 				},
 				"gzip": {
-					Type:        schema.TypeString,
-					Optional:    true,
-					Default:     "txt,js,htm,html,css",
+					Type:     schema.TypeString,
+					Optional: true,
+					//Default:     "txt,js,htm,html,css",
 					Description: "File suffixes to compress if requested",
 				},
 				"level": {
 					Type:        schema.TypeInt,
 					Optional:    true,
-					Default:     1,
 					Description: "The level of compression used for gzip",
+					ValidateFunc: func(val interface{}, key string) (warns []string, errs []error) {
+						v := val.(int)
+						if v < 0 || v > 6 {
+							errs = append(errs, fmt.Errorf("%q must be greater than or equal to 0 or no greater than 6, got %s", key, val))
+						}
+						return warns, errs
+					},
 				},
 				"mime": &schema.Schema{
-					Type:        schema.TypeList,
+					Type:        schema.TypeString,
 					Optional:    true,
 					Description: "Mime types to be used with gzip compression",
-					Default:     []string{"text/*"},
-					Elem: &schema.Schema{
-						Type: schema.TypeString,
-					},
+				},
+			},
+		},
+	}
+
+	staticHeaderSchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Fields for static header injection",
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"http": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Headers to add to the response to the client",
+				},
+				"origin_pull": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Headers to add to origin request",
+				},
+				"client_request": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Headers to add to the request from the client",
 				},
 			},
 		},
@@ -317,7 +349,8 @@ func resourceConfiguration() *schema.Resource {
 		MaxItems:    1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
-				"compresssion": compressionSchema,
+				"compression":   compressionSchema,
+				"static_header": staticHeaderSchema,
 			},
 		},
 	}
