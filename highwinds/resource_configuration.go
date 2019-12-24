@@ -311,12 +311,18 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	// TODO: Must implement a weighting like OriginPullPolicy, order matters
 	staticHeaderSchema := &schema.Schema{
 		Type:        schema.TypeSet,
 		Optional:    true,
 		Description: "Fields for static header injection",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
+				"weight": {
+					Type:        schema.TypeInt,
+					Description: "Indicates the position in the ordered stack of this static header rule",
+					Required:    true,
+				},
 				"enabled": {
 					Type:     schema.TypeBool,
 					Default:  true,
@@ -335,7 +341,27 @@ func resourceConfiguration() *schema.Resource {
 				"client_request": {
 					Type:        schema.TypeString,
 					Optional:    true,
-					Description: "Headers to add to the request from the client",
+					Description: "Headers to add to the request from the client to the CDN",
+				},
+				"method_filter": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "HTTP Method filter for this rule",
+				},
+				"path_filter": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "URL Path filter for this rule",
+				},
+				"header_filter": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Header filter for this rule",
+				},
+				"client_response_code_filter": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Client response Status code this rule applies to, can use globs like 2* for all 200s or 3* for all 300s etc",
 				},
 			},
 		},
@@ -351,6 +377,15 @@ func resourceConfiguration() *schema.Resource {
 			Schema: map[string]*schema.Schema{
 				"compression":   compressionSchema,
 				"static_header": staticHeaderSchema,
+				// delivery_behaviors => http_methods, custom_http_response_headers
+				// rate_limiting => bandwidth_rate_limiting, pattern_based_rate_limiting
+				// force_downloads => disposition_by_http_header, disposition_by_url
+				// custom_mime_types
+				// edge_responses => cache_rule
+				// media_delivery => pseudo_flash_streaming, pseudo_streaming, reserved_query_string_params
+				// error_redirects => exceptions_to_redirect, response_code_redirection
+				// dynamic_files => robots_configuration
+				//
 			},
 		},
 	}
