@@ -67,6 +67,10 @@ func expandOriginPullCacheExtension(m map[string]interface{}) *models.OriginPull
 
 }
 
+/*
+	Delivery
+*/
+
 func expandDeliverySet(raw interface{}) map[string]interface{} {
 	if deliverySet, ok := raw.(*schema.Set); ok {
 		set := deliverySet.List()[0]
@@ -99,27 +103,34 @@ func compressDeliverySet(c *models.Configuration) []interface{} {
 	return nil
 }
 
+/*
+	Delivery Compression
+*/
+
 func expandDeliveryCompression(raw interface{}) *models.Compression {
 	if compression, ok := raw.(*schema.Set); ok {
 		compressionSet := compression.List()[0]
 		if m, ok := compressionSet.(map[string]interface{}); ok {
 			c := &models.Compression{}
 
-			if v, ok := m["enabled"]; ok {
-				c.Enabled = v.(bool)
-			}
+			/*
+				if v, ok := m["enabled"]; ok {
+					c.Enabled = v.(bool)
+				}
 
-			if v, ok := m["gzip"]; ok {
-				c.GZIP = v.(string)
-			}
+				if v, ok := m["gzip"]; ok {
+					c.GZIP = v.(string)
+				}
 
-			if v, ok := m["level"]; ok {
-				c.Level = v.(int)
-			}
+				if v, ok := m["level"]; ok {
+					c.Level = v.(int)
+				}
 
-			if v, ok := m["mime"]; ok {
-				c.Mime = v.(string)
-			}
+				if v, ok := m["mime"]; ok {
+					c.Mime = v.(string)
+				}
+			*/
+			c = models.StructFromMap(c, m).(*models.Compression)
 
 			return c
 		}
@@ -130,15 +141,22 @@ func expandDeliveryCompression(raw interface{}) *models.Compression {
 func compressDeliveryCompression(c *models.Compression) []interface{} {
 	if c != nil {
 		compression := make([]interface{}, 0)
-		compression = append(compression, c.Map())
+		compression = append(compression, models.MapFromStruct(c))
 		return compression
 	}
 	// we don't want to make empty things where there is nothing
 	return nil
 }
 
+/*
+	Delivery Static Headers
+*/
+
 func expandDeliveryStaticHeaders(raw interface{}) []*models.StaticHeader {
 	// TODO: Must implement a weighting like OriginPullPolicy, order matters
+	/* TODO FIELDS
+	weight
+	*/
 	m := make([]*models.StaticHeader, 0)
 
 	if sh, ok := raw.(*schema.Set); ok {
@@ -157,13 +175,38 @@ func expandDeliveryStaticHeaders(raw interface{}) []*models.StaticHeader {
 	return nil
 }
 
+func expandDeliveryStaticHeader(m map[string]interface{}) *models.StaticHeader {
+	sh := &models.StaticHeader{}
+	/*
+		if v, ok := m["enabled"]; ok {
+			sh.Enabled = v.(bool)
+		}
+		if v, ok := m["origin_pull"]; ok {
+			sh.OriginPull = v.(string)
+		}
+		if v, ok := m["client_request"]; ok {
+			sh.ClientRequest = v.(string)
+		}
+		if v, ok := m["http"]; ok {
+			sh.HTTP = v.(string)
+		}
+	*/
+	sh = models.StructFromMap(sh, m).(*models.StaticHeader)
+
+	return sh
+}
+
 func compressDeliveryStaticHeaders(sh []*models.StaticHeader) []interface{} {
 	// TODO: Must implement a weighting like OriginPullPolicy, order matters
+	/* TODO FIELDS
+	weight
+	*/
 	if len(sh) > 0 {
 		staticHeader := make([]interface{}, 0)
 		for _, header := range sh {
 			if header != nil {
-				staticHeader = append(staticHeader, header.Map())
+				//staticHeader = append(staticHeader, header.Map())
+				staticHeader = append(staticHeader, models.MapFromStruct(header))
 			}
 		}
 		return staticHeader
@@ -172,29 +215,3 @@ func compressDeliveryStaticHeaders(sh []*models.StaticHeader) []interface{} {
 
 	return nil
 }
-
-func expandDeliveryStaticHeader(m map[string]interface{}) *models.StaticHeader {
-	sh := &models.StaticHeader{}
-	if v, ok := m["enabled"]; ok {
-		sh.Enabled = v.(bool)
-	}
-	if v, ok := m["origin_pull"]; ok {
-		sh.OriginPull = v.(string)
-	}
-	if v, ok := m["client_request"]; ok {
-		sh.ClientRequest = v.(string)
-	}
-	if v, ok := m["http"]; ok {
-		sh.HTTP = v.(string)
-	}
-
-	return sh
-}
-
-//func compressDeliveryCompression(c *models.Compression) map[string]interface{} {
-//	m := make(map[string]interface{}, 0)
-//
-//	m["enabled"] = c.Enabled
-//
-//	return m
-//}
