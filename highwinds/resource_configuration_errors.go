@@ -27,3 +27,15 @@ func ErrSetState(errs []error) error {
 	}
 	return nil
 }
+
+// ErrSetModel is an error response for failures during model creation
+func ErrSetModel(errs []error) error {
+	if len(errs) > 0 {
+		var stringedErrors []string
+		for _, err := range errs {
+			stringedErrors = append(stringedErrors, err.Error())
+		}
+		return fmt.Errorf("Error building models: %v", strings.Join(stringedErrors, " / "))
+	}
+	return nil
+}

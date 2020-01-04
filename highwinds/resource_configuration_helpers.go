@@ -21,63 +21,98 @@ func buildNewConfigurationFromState(d *schema.ResourceData) (*models.NewHostConf
 
 // buildConfigurationFromState builds a configuration model from terraform state
 func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration, error) {
-	var err error
+	//	var err error
 
-	config := &models.Configuration{
-		Scope:                    expandScopeModel(d.Get("scope").(map[string]interface{})),
-		Hostname:                 models.ScopeHostnameFromInterfaceSlice(d.Get("hostnames").([]interface{})),
-		OriginPullHost:           expandOriginPullHost(d.Get("origin_pull_host").(*schema.Set).List()[0].(map[string]interface{})),
-		OriginPullCacheExtension: expandOriginPullCacheExtension(d.Get("stale_cache_extension").(*schema.Set).List()[0].(map[string]interface{})),
+	config := &models.Configuration{}
+
+	if v, ok := d.GetOk("scope"); ok {
+		config.Scope = models.StructFromMap(&models.Scope{}, v.(map[string]interface{})).(*models.Scope)
+	}
+
+	if v, ok := d.GetOk("hostnames"); ok {
+		config.Hostname = models.ScopeHostnameFromInterfaceSlice(v.([]interface{}))
+	}
+
+	if v, ok := d.GetOk("origin_pull_host"); ok {
+		config.OriginPullHost = models.StructFromMap(&models.OriginPullHost{}, getMapFromZeroedSet(v)).(*models.OriginPullHost)
+	}
+
+	if v, ok := d.GetOk("stale_cache_extension"); ok {
+		config.OriginPullCacheExtension = models.StructFromMap(&models.OriginPullCacheExtension{}, v.(*schema.Set).List()[0].(map[string]interface{})).(*models.OriginPullCacheExtension)
+	}
+
+	// weighted set
+	if v, ok := d.GetOk("cache_policy"); ok {
+		models, err := expandOriginPullPolicies(getSliceIfaceFromSet(v))
+		if err != nil {
+			return nil, err
+		}
+		config.OriginPullPolicy = models
+	}
+
+	// weighted set
+	if v, ok := d.GetOk("origin_request_edge_rule"); ok {
+		models, err := expandOriginRequestModification(getSliceIfaceFromSet(v))
+		if err != nil {
+			return nil, err
+		}
+		config.OriginRequestModification = models
+	}
+
+	// weighted set
+	if v, ok := d.GetOk("origin_response_edge_rule"); ok {
+		models, err := expandOriginResponseModification(getSliceIfaceFromSet(v))
+		if err != nil {
+			return nil, err
+		}
+		config.OriginResponseModification = models
+	}
+
+	// weighted set
+	if v, ok := d.GetOk("client_request_edge_rule"); ok {
+		models, err := expandClientRequestModification(getSliceIfaceFromSet(v))
+		if err != nil {
+			return nil, err
+		}
+		config.ClientRequestModification = models
+	}
+
+	// weighted set
+	if v, ok := d.GetOk("client_response_edge_rule"); ok {
+		models, err := expandClientResponseModification(getSliceIfaceFromSet(v))
+		if err != nil {
+			return nil, err
+		}
+		config.ClientResponseModification = models
 	}
 
 	// Delivery is a complex set
 	if v, ok := d.GetOk("delivery"); ok {
 		delivery := expandDeliverySet(v)
+
+		debug.Log("DEBUG CHECK", "SETTING MODEL")
+
 		if compression, ok := delivery["compression"]; ok {
-			config.Compression = expandDeliveryCompression(compression)
+			config.Compression = models.StructFromMap(&models.Compression{}, getMapFromZeroedSet(compression)).(*models.Compression)
 		}
+
 		if staticHeader, ok := delivery["static_header"]; ok {
-			// TODO: Must implement a weighting like OriginPullPolicy, order matters
-			config.StaticHeader = expandDeliveryStaticHeaders(staticHeader)
+			sh, err := expandDeliveryStaticHeader(getSliceIfaceFromSet(staticHeader))
+			if err != nil {
+				return nil, err
+			}
+			config.StaticHeader = sh
+		}
+
+		if httpMethods, ok := delivery["http_methods"]; ok {
+			config.HTTPMethods = models.StructFromMap(&models.HTTPMethods{}, getMapFromZeroedSet(httpMethods)).(*models.HTTPMethods)
+		}
+
+		if responseHeader, ok := delivery["response_header"]; ok {
+			config.ResponseHeader = models.StructFromMap(&models.ResponseHeader{}, getMapFromZeroedSet(responseHeader)).(*models.ResponseHeader)
 		}
 
 	}
-
-	if v, ok := d.GetOk("cache_policy"); ok {
-		err = config.OriginPullPolicyFromState(v.(*schema.Set).List())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if v, ok := d.GetOk("origin_request_edge_rule"); ok {
-		err = config.OriginRequestModificationFromState(v.(*schema.Set).List())
-		if err != nil {
-			return nil, err
-		}
-	}
-	if v, ok := d.GetOk("origin_response_edge_rule"); ok {
-		err = config.OriginResponseModificationFromState(v.(*schema.Set).List())
-		if err != nil {
-			return nil, err
-		}
-	}
-	if v, ok := d.GetOk("client_request_edge_rule"); ok {
-		err = config.ClientRequestModificationFromState(v.(*schema.Set).List())
-		if err != nil {
-			return nil, err
-		}
-	}
-	if v, ok := d.GetOk("client_response_edge_rule"); ok {
-		err = config.ClientResponseModificationFromState(v.(*schema.Set).List())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	/*
-		Delivery
-	*/
 
 	debug.Log("STATE", "%v", spew.Sprintf("%v", config.Scope))
 
@@ -89,7 +124,7 @@ func ingestState(d *schema.ResourceData, config *models.Configuration) []error {
 	var errs []error
 
 	// Set scope details
-	err := d.Set("scope", config.ScopeFromModel())
+	err := d.Set("scope", models.MapFromStruct(config.Scope))
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -100,53 +135,47 @@ func ingestState(d *schema.ResourceData, config *models.Configuration) []error {
 		errs = append(errs, err)
 	}
 
-	// Set origin_pull_host
-	err = d.Set("origin_pull_host", config.OriginHostFromModel())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	// Set stale_cache_extension
-	err = d.Set("stale_cache_extension", config.OriginPullCacheExtensionFromModel())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	// Set cache_policy (origin pull policy)
-	err = d.Set("cache_policy", config.OriginPullPolicyFromModel())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	// Set origin_request_edge_rule
-	err = d.Set("origin_request_edge_rule", config.OriginRequestModificationFromModel())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	// Set origin_response_edge_rule
-	err = d.Set("origin_response_edge_rule", config.OriginResponseModificationFromModel())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	// Set client_request_edge_rule
-	err = d.Set("client_request_edge_rule", config.ClientRequestModificationFromModel())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	// Set client_response_edge_rule
-	err = d.Set("client_response_edge_rule", config.ClientResponseModificationFromModel())
-	if err != nil {
-		errs = append(errs, err)
-	}
-
-	/*
-		Delivery
-	*/
+	// Delivery is a complex set
 	err = d.Set("delivery", compressDeliverySet(config))
-	// needs to be fully prepacked
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set origin_pull_host - unweighted set
+	err = d.Set("origin_pull_host", []interface{}{models.MapFromStruct(config.OriginPullHost)})
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set stale_cache_extension - unweighted set
+	err = d.Set("stale_cache_extension", []interface{}{models.MapFromStruct(config.OriginPullCacheExtension)})
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set cache_policy (OriginPullPolicy) - weighted
+	err = d.Set("cache_policy", compressOriginPullPolicies(config.OriginPullPolicy))
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	// Set Edge Rules
+	err = d.Set("origin_request_edge_rule", compressOriginRequestModification(config.OriginRequestModification))
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	err = d.Set("origin_response_edge_rule", compressOriginResponseModification(config.OriginResponseModification))
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	err = d.Set("client_request_edge_rule", compressClientRequestModification(config.ClientRequestModification))
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	err = d.Set("client_response_edge_rule", compressClientResponseModification(config.ClientResponseModification))
 	if err != nil {
 		errs = append(errs, err)
 	}

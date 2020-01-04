@@ -95,7 +95,7 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
-	// Cache Policy
+	// Cache Policy / OriginPullPolicy - weighted
 	originPullPolicySchema := &schema.Schema{
 		Description: "Cache control policies to apply to an origin",
 		Type:        schema.TypeSet,
@@ -235,14 +235,18 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
-	// Request Modifications
-	// TODO: This will need expanded, there are more fields
+	// Request Modifications - weighted
 	requestModificationsSchema := &schema.Schema{
 		Type:        schema.TypeSet,
 		Optional:    true,
 		Description: "Edge rules targeting the origin response/request",
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
+				"weight": {
+					Type:        schema.TypeInt,
+					Description: "Indicates the position in the ordered stack of this CDN cache rule",
+					Required:    true,
+				},
 				"enabled": {
 					Type:     schema.TypeBool,
 					Default:  true,
@@ -267,6 +271,22 @@ func resourceConfiguration() *schema.Resource {
 					StateFunc: func(val interface{}) string {
 						return strings.ToLower(val.(string))
 					},
+				},
+				"url_pattern": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"url_rewrite": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"header_pattern": {
+					Type:     schema.TypeString,
+					Optional: true,
+				},
+				"header_rewrite": {
+					Type:     schema.TypeString,
+					Optional: true,
 				},
 			},
 		},
@@ -311,7 +331,6 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
-	// TODO: Must implement a weighting like OriginPullPolicy, order matters
 	staticHeaderSchema := &schema.Schema{
 		Type:        schema.TypeSet,
 		Optional:    true,
@@ -367,16 +386,65 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	httpMethodSchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Selectively enable additional HTTP methods you'd like the CDN to process",
+		MaxItems:    1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Default:  true,
+					Optional: true,
+				},
+				"passthru": {
+					Type:     schema.TypeString,
+					Optional: true,
+					Default:  "*",
+				},
+			},
+		},
+	}
+
+	responseHeaderSchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Enable and bypass certain origin headers that affect delivery",
+		MaxItems:    1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Optional: true,
+				},
+				"http": {
+					Type:        schema.TypeString,
+					Description: "Force download by user agent",
+					Deprecated:  "This key is used for legacy sites, you should use client response modifications instead",
+					Optional:    true,
+				},
+				"enable_etag": {
+					Type:        schema.TypeBool,
+					Optional:    true,
+					Description: "Enables the etag header on responses from the CDN",
+				},
+			},
+		},
+	}
+
 	// Delivery
 	deliverySchema := &schema.Schema{
 		Type:        schema.TypeSet,
 		Optional:    true,
-		Description: "Delivery related features",
+		Description: "Delivery related features, set of sets",
 		MaxItems:    1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
-				"compression":   compressionSchema,
-				"static_header": staticHeaderSchema,
+				"compression":     compressionSchema,
+				"static_header":   staticHeaderSchema,
+				"http_methods":    httpMethodSchema,
+				"response_header": responseHeaderSchema,
 				// delivery_behaviors => http_methods, custom_http_response_headers
 				// rate_limiting => bandwidth_rate_limiting, pattern_based_rate_limiting
 				// force_downloads => disposition_by_http_header, disposition_by_url
