@@ -433,6 +433,66 @@ func resourceConfiguration() *schema.Resource {
 		},
 	}
 
+	bwRateLimitingSchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Limit the transfer rate of files in general",
+		MaxItems:    1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Optional: true,
+				},
+				"initial_burst_name": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Burst rate limit query string name that establishes initial burst rate limit",
+				},
+				"sustained_rate_name": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Sustained rate limit query string name that establishes sustained rate limit",
+				},
+				"initial_burst_units": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "The units used by the initial burst parameter on the URL",
+				},
+				"sustained_rate_units": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "The units used by the sustained rate parameter on the URL",
+				},
+			},
+		},
+	}
+
+	patternRateLimitingSchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Limit the transfer of files by extension",
+		MaxItems:    1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"enabled": {
+					Type:     schema.TypeBool,
+					Optional: true,
+				},
+				"rule": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "Pipe (|) delimited list of file extensions to rate limit",
+				},
+				"values": {
+					Type:        schema.TypeString,
+					Optional:    true,
+					Description: "The actual rate limit, in format (1mbps)",
+				},
+			},
+		},
+	}
+
 	// Delivery
 	deliverySchema := &schema.Schema{
 		Type:        schema.TypeSet,
@@ -441,12 +501,13 @@ func resourceConfiguration() *schema.Resource {
 		MaxItems:    1,
 		Elem: &schema.Resource{
 			Schema: map[string]*schema.Schema{
-				"compression":     compressionSchema,
-				"static_header":   staticHeaderSchema,
-				"http_methods":    httpMethodSchema,
-				"response_header": responseHeaderSchema,
-				// delivery_behaviors => http_methods, custom_http_response_headers
-				// rate_limiting => bandwidth_rate_limiting, pattern_based_rate_limiting
+				"compression":                 compressionSchema,
+				"static_header":               staticHeaderSchema,
+				"http_methods":                httpMethodSchema,
+				"response_header":             responseHeaderSchema,
+				"bandwidth_rate_limiting":     bwRateLimitingSchema,
+				"pattern_based_rate_limiting": patternRateLimitingSchema,
+
 				// force_downloads => disposition_by_http_header, disposition_by_url
 				// custom_mime_types
 				// edge_responses => cache_rule
@@ -454,6 +515,24 @@ func resourceConfiguration() *schema.Resource {
 				// error_redirects => exceptions_to_redirect, response_code_redirection
 				// dynamic_files => robots_configuration
 				//
+			},
+		},
+	}
+
+	// Origin
+	originSchema := &schema.Schema{
+		Type:        schema.TypeSet,
+		Optional:    true,
+		Description: "Origin related features, set of sets",
+		MaxItems:    1,
+		Elem: &schema.Resource{
+			Schema: map[string]*schema.Schema{
+				"origin_pull_host": originHostSchema,
+				// OriginPullProtocol
+				// FileSegmentation
+				// OriginPersistentConnections
+				// OriginPull?
+				// GzipOriginPull
 			},
 		},
 	}
@@ -514,7 +593,6 @@ func resourceConfiguration() *schema.Resource {
 				Optional: true,
 			},
 			"scope":                     scopeSchema,
-			"origin_pull_host":          originHostSchema,
 			"stale_cache_extension":     originPullCacheExtensionSchema,
 			"cache_policy":              originPullPolicySchema,
 			"origin_request_edge_rule":  requestModificationsSchema,
@@ -522,6 +600,7 @@ func resourceConfiguration() *schema.Resource {
 			"client_request_edge_rule":  requestModificationsSchema,
 			"client_response_edge_rule": requestModificationsSchema,
 			"delivery":                  deliverySchema,
+			"origin":                    originSchema,
 		},
 	}
 }

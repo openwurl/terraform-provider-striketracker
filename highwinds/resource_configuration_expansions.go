@@ -11,9 +11,23 @@ import (
 	Helpers
 */
 
+// expandSetOfMaps expands a tf set of maps into its first level map
+func expandSetOfMaps(raw interface{}) map[string]interface{} {
+	if deliverySet, ok := raw.(*schema.Set); ok {
+		set := deliverySet.List()[0]
+		if deliverySlice, ok := set.(map[string]interface{}); ok {
+			return deliverySlice
+		}
+	}
+	return nil
+}
+
 // getMapFromZeroedSet returns the (*schema.Set).List()[0] map if it is one
 func getMapFromZeroedSet(set interface{}) map[string]interface{} {
 	if v, ok := set.(*schema.Set); ok {
+		if len(v.List()) < 1 {
+			return nil
+		}
 		if sv, ok := v.List()[0].(map[string]interface{}); ok {
 			return sv
 		}
@@ -200,25 +214,17 @@ func compressClientRequestModification(model []*models.ClientRequestModification
 	This is a huge set of sets comprised of many submodels
 */
 
-// expandDeliverySet expands the tf delivery set into its first level map
-func expandDeliverySet(raw interface{}) map[string]interface{} {
-	if deliverySet, ok := raw.(*schema.Set); ok {
-		set := deliverySet.List()[0]
-		if deliverySlice, ok := set.(map[string]interface{}); ok {
-			return deliverySlice
-		}
-	}
-	return nil
-}
-
 // compressDeliverySet packs several models into an []interface{} to be injected in a tf set
 func compressDeliverySet(c *models.Configuration) []interface{} {
-	// compression
+	// compression - can't avoid spelling out the fields here for now
+	// no way to store object refs in json tags
 	deliveryFirstLevel := make(map[string]interface{})
 	deliveryFirstLevel["compression"] = []interface{}{models.MapFromStruct(c.Compression)}
 	deliveryFirstLevel["static_header"] = compressDeliveryStaticHeader(c.StaticHeader)
 	deliveryFirstLevel["http_methods"] = []interface{}{models.MapFromStruct(c.HTTPMethods)}
 	deliveryFirstLevel["response_header"] = []interface{}{models.MapFromStruct(c.ResponseHeader)}
+	deliveryFirstLevel["bandwidth_rate_limiting"] = []interface{}{models.MapFromStruct(c.BandwidthRateLimit)}
+	deliveryFirstLevel["pattern_based_rate_limiting"] = []interface{}{models.MapFromStruct(c.BandwidthLimit)}
 
 	if len(deliveryFirstLevel) > 0 {
 		deliveryIface := make([]interface{}, 0)
@@ -226,6 +232,19 @@ func compressDeliverySet(c *models.Configuration) []interface{} {
 		return deliveryIface
 	}
 
+	return nil
+}
+
+// compressOriginSet packs several models into an []interface{} to be injected in a tf set
+func compressOriginSet(c *models.Configuration) []interface{} {
+	originFirstLevel := make(map[string]interface{})
+	originFirstLevel["origin_pull_host"] = []interface{}{models.MapFromStruct(c.OriginPullHost)}
+
+	if len(originFirstLevel) > 0 {
+		originIface := make([]interface{}, 0)
+		originIface = append(originIface, originFirstLevel)
+		return originIface
+	}
 	return nil
 }
 

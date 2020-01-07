@@ -33,14 +33,6 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 		config.Hostname = models.ScopeHostnameFromInterfaceSlice(v.([]interface{}))
 	}
 
-	if v, ok := d.GetOk("origin_pull_host"); ok {
-		config.OriginPullHost = models.StructFromMap(&models.OriginPullHost{}, getMapFromZeroedSet(v)).(*models.OriginPullHost)
-	}
-
-	if v, ok := d.GetOk("stale_cache_extension"); ok {
-		config.OriginPullCacheExtension = models.StructFromMap(&models.OriginPullCacheExtension{}, v.(*schema.Set).List()[0].(map[string]interface{})).(*models.OriginPullCacheExtension)
-	}
-
 	// weighted set
 	if v, ok := d.GetOk("cache_policy"); ok {
 		models, err := expandOriginPullPolicies(getSliceIfaceFromSet(v))
@@ -48,6 +40,10 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 			return nil, err
 		}
 		config.OriginPullPolicy = models
+	}
+
+	if v, ok := d.GetOk("stale_cache_extension"); ok {
+		config.OriginPullCacheExtension = models.StructFromMap(&models.OriginPullCacheExtension{}, v.(*schema.Set).List()[0].(map[string]interface{})).(*models.OriginPullCacheExtension)
 	}
 
 	// weighted set
@@ -88,30 +84,56 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 
 	// Delivery is a complex set
 	if v, ok := d.GetOk("delivery"); ok {
-		delivery := expandDeliverySet(v)
+		delivery := expandSetOfMaps(v)
 
-		debug.Log("DEBUG CHECK", "SETTING MODEL")
-
-		if compression, ok := delivery["compression"]; ok {
-			config.Compression = models.StructFromMap(&models.Compression{}, getMapFromZeroedSet(compression)).(*models.Compression)
+		err := config.ExpandParentFields(delivery)
+		if err != nil {
+			return nil, err
 		}
 
-		if staticHeader, ok := delivery["static_header"]; ok {
-			sh, err := expandDeliveryStaticHeader(getSliceIfaceFromSet(staticHeader))
-			if err != nil {
-				return nil, err
+		/*
+			debug.Log("DEBUG CHECK", "SETTING MODEL")
+
+			if compression, ok := delivery["compression"]; ok {
+				config.Compression = models.StructFromMap(&models.Compression{}, getMapFromZeroedSet(compression)).(*models.Compression)
 			}
-			config.StaticHeader = sh
-		}
 
-		if httpMethods, ok := delivery["http_methods"]; ok {
-			config.HTTPMethods = models.StructFromMap(&models.HTTPMethods{}, getMapFromZeroedSet(httpMethods)).(*models.HTTPMethods)
-		}
+			if staticHeader, ok := delivery["static_header"]; ok {
+				sh, err := expandDeliveryStaticHeader(getSliceIfaceFromSet(staticHeader))
+				if err != nil {
+					return nil, err
+				}
+				config.StaticHeader = sh
+			}
 
-		if responseHeader, ok := delivery["response_header"]; ok {
-			config.ResponseHeader = models.StructFromMap(&models.ResponseHeader{}, getMapFromZeroedSet(responseHeader)).(*models.ResponseHeader)
-		}
+			if httpMethods, ok := delivery["http_methods"]; ok {
+				config.HTTPMethods = models.StructFromMap(&models.HTTPMethods{}, getMapFromZeroedSet(httpMethods)).(*models.HTTPMethods)
+			}
 
+			if responseHeader, ok := delivery["response_header"]; ok {
+				config.ResponseHeader = models.StructFromMap(&models.ResponseHeader{}, getMapFromZeroedSet(responseHeader)).(*models.ResponseHeader)
+			}
+				debug.Log("DEBUG CHECK", "bandwidth_rate_limiting MODEL")
+
+				if bwRL, ok := delivery["bandwidth_rate_limiting"]; ok {
+					config.BandwidthRateLimit = models.StructFromMap(&models.BandwidthRateLimit{}, getMapFromZeroedSet(bwRL)).(*models.BandwidthRateLimit)
+				}
+
+				debug.Log("DEBUG CHECK", "pattern_based_rate_limiting MODEL")
+
+				if bwL, ok := delivery["pattern_based_rate_limiting"]; ok {
+					config.BandwidthLimit = models.StructFromMap(&models.BandwidthLimit{}, getMapFromZeroedSet(bwL)).(*models.BandwidthLimit)
+				}
+		*/
+	}
+
+	// Origin is a complex set
+	if v, ok := d.GetOk("origin"); ok {
+		origin := expandSetOfMaps(v)
+
+		if originPullHost, ok := origin["origin_pull_host"]; ok {
+			config.OriginPullHost = models.StructFromMap(&models.OriginPullHost{}, getMapFromZeroedSet(originPullHost)).(*models.OriginPullHost)
+		}
 	}
 
 	debug.Log("STATE", "%v", spew.Sprintf("%v", config.Scope))
@@ -122,6 +144,8 @@ func buildConfigurationFromState(d *schema.ResourceData) (*models.Configuration,
 // ingestState updates terraform state from a configuration model
 func ingestState(d *schema.ResourceData, config *models.Configuration) []error {
 	var errs []error
+
+	//parents := config.CompressParentFields()[0].(map[string]map[string]interface{})
 
 	// Set scope details
 	err := d.Set("scope", models.MapFromStruct(config.Scope))
@@ -136,16 +160,17 @@ func ingestState(d *schema.ResourceData, config *models.Configuration) []error {
 	}
 
 	// Delivery is a complex set
-	err = d.Set("delivery", compressDeliverySet(config))
-	if err != nil {
-		errs = append(errs, err)
-	}
+	//err = d.Set("delivery", []interface{}{parents["delivery"]})
+	//if err != nil {
+	//	errs = append(errs, err)
+	//}
 
-	// Set origin_pull_host - unweighted set
-	err = d.Set("origin_pull_host", []interface{}{models.MapFromStruct(config.OriginPullHost)})
-	if err != nil {
-		errs = append(errs, err)
-	}
+	// Origin is a complex set
+	//err = d.Set("origin", compressOriginSet(config))
+	//err = d.Set("origin", []interface{}{parents["origin"]})
+	//if err != nil {
+	//	errs = append(errs, err)
+	//}
 
 	// Set stale_cache_extension - unweighted set
 	err = d.Set("stale_cache_extension", []interface{}{models.MapFromStruct(config.OriginPullCacheExtension)})
@@ -179,6 +204,9 @@ func ingestState(d *schema.ResourceData, config *models.Configuration) []error {
 	if err != nil {
 		errs = append(errs, err)
 	}
+
+	test := d.Get("delivery")
+	debug.Log("FJDSKLFLSDKFLKSFKLSDF", "%v", spew.Sprintf("%v", test))
 
 	return errs
 }
