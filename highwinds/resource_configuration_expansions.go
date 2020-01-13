@@ -11,6 +11,8 @@ import (
 	Helpers
 */
 
+// repackForExpansion repacks *schema.Set to []interface{}
+
 // expandSetOfMaps expands a tf set of maps into its first level map
 func expandSetOfMaps(raw interface{}) map[string]interface{} {
 	if deliverySet, ok := raw.(*schema.Set); ok {
@@ -83,7 +85,14 @@ func expandOriginPullPolicies(set []interface{}) ([]*models.OriginPullPolicy, er
 	}
 
 	for _, policy := range orderedList {
-		ret = append(ret, models.StructFromMap(&models.OriginPullPolicy{}, policy.(map[string]interface{})).(*models.OriginPullPolicy))
+		structIFace := models.StructFromMap(&models.OriginPullPolicy{}, policy.(map[string]interface{}))
+		if structIFace != nil {
+			v := structIFace.(*models.OriginPullPolicy)
+			ret = append(ret, v)
+		} else {
+			return nil, nil
+		}
+
 	}
 
 	return ret, nil
